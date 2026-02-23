@@ -1,0 +1,3 @@
+[console_scripts]
+listener = demo_gui.subscriber_member_function:main
+talker = demo_gui.publisher_member_function:main

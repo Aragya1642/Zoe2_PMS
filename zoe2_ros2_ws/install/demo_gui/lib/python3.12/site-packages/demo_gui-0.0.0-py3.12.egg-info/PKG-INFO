@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: demo-gui
+Version: 0.0.0
+Summary: Publishes information about battery and allows for visualization over foxglove.
+Maintainer: Aragya Goyal
+Maintainer-email: agoyal1642@gmail.com
+License: Apache-2.0
+Provides-Extra: test
+License-File: LICENSE

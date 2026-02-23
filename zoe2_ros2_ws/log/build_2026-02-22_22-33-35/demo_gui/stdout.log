@@ -1,0 +1,40 @@
+running egg_info
+creating ../../build/demo_gui/demo_gui.egg-info
+writing ../../build/demo_gui/demo_gui.egg-info/PKG-INFO
+writing dependency_links to ../../build/demo_gui/demo_gui.egg-info/dependency_links.txt
+writing entry points to ../../build/demo_gui/demo_gui.egg-info/entry_points.txt
+writing requirements to ../../build/demo_gui/demo_gui.egg-info/requires.txt
+writing top-level names to ../../build/demo_gui/demo_gui.egg-info/top_level.txt
+writing manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+reading manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+copying demo_gui/subscriber_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+copying demo_gui/__init__.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+copying demo_gui/publisher_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+running install
+running install_lib
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/subscriber_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/__init__.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/publisher_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/subscriber_member_function.py to subscriber_member_function.cpython-312.pyc
+byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/publisher_member_function.py to publisher_member_function.cpython-312.pyc
+running install_data
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index
+creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index/packages
+copying resource/demo_gui -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index/packages
+copying package.xml -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/demo_gui
+running install_egg_info
+Copying ../../build/demo_gui/demo_gui.egg-info to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui-0.0.0-py3.12.egg-info
+running install_scripts
+Installing listener script to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/demo_gui
+Installing talker script to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/demo_gui
+writing list of installed files to '/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/install.log'

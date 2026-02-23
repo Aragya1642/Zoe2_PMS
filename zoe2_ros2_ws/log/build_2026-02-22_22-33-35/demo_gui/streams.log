@@ -1,0 +1,42 @@
+[0.843s] Invoking command in '/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/src/demo_gui': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/demo_gui build --build-base /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build install --record /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/install.log --single-version-externally-managed install_data
+[1.110s] running egg_info
+[1.111s] creating ../../build/demo_gui/demo_gui.egg-info
+[1.133s] writing ../../build/demo_gui/demo_gui.egg-info/PKG-INFO
+[1.133s] writing dependency_links to ../../build/demo_gui/demo_gui.egg-info/dependency_links.txt
+[1.133s] writing entry points to ../../build/demo_gui/demo_gui.egg-info/entry_points.txt
+[1.134s] writing requirements to ../../build/demo_gui/demo_gui.egg-info/requires.txt
+[1.134s] writing top-level names to ../../build/demo_gui/demo_gui.egg-info/top_level.txt
+[1.134s] writing manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+[1.178s] reading manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+[1.179s] adding license file 'LICENSE'
+[1.179s] writing manifest file '../../build/demo_gui/demo_gui.egg-info/SOURCES.txt'
+[1.179s] running build
+[1.179s] running build_py
+[1.179s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build
+[1.180s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib
+[1.180s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+[1.180s] copying demo_gui/subscriber_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+[1.180s] copying demo_gui/__init__.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+[1.180s] copying demo_gui/publisher_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui
+[1.180s] running install
+[1.186s] running install_lib
+[1.209s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+[1.209s] copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/subscriber_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+[1.209s] copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/__init__.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+[1.209s] copying /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build/lib/demo_gui/publisher_member_function.py -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui
+[1.210s] byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/subscriber_member_function.py to subscriber_member_function.cpython-312.pyc
+[1.210s] byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/__init__.py to __init__.cpython-312.pyc
+[1.210s] byte-compiling /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui/publisher_member_function.py to publisher_member_function.cpython-312.pyc
+[1.211s] running install_data
+[1.211s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index
+[1.211s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index
+[1.211s] creating /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index/packages
+[1.212s] copying resource/demo_gui -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/ament_index/resource_index/packages
+[1.212s] copying package.xml -> /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/share/demo_gui
+[1.212s] running install_egg_info
+[1.234s] Copying ../../build/demo_gui/demo_gui.egg-info to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages/demo_gui-0.0.0-py3.12.egg-info
+[1.235s] running install_scripts
+[1.378s] Installing listener script to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/demo_gui
+[1.379s] Installing talker script to /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/demo_gui
+[1.379s] writing list of installed files to '/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/install.log'
+[1.407s] Invoked command in '/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/src/demo_gui' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/install/demo_gui/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/demo_gui build --build-base /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/build install --record /home/agoyal1642/Documents/Zoe2_PMS/zoe2_ros2_ws/build/demo_gui/install.log --single-version-externally-managed install_data
