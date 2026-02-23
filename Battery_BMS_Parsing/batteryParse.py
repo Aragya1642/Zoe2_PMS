@@ -154,17 +154,36 @@ def process_message(msg):
             print(f"    Cell Number: {cell_number}  NTC Number: {ntc_number}  Remain Capacity: {remain_capacity}mAh  Cycle Time: {cycle_time}")
         elif fc == 0x09:    # Hardware/Battery Failure
             pass
-        # Equilibrium State Info
-
-        # Charging Information
-
-        # Calendar
-
-        # Limiting
-
-        # Faults
-
-        # AFE Data
+        elif fc == 0x0A:    # Equilibrium State Info
+            balance_state = d[0]
+            balance_cur = int.from_bytes(d[2:4], "big")
+            balance_1_8_state = d[4]
+            balance_9_16_state = d[5]
+            balance_17_24_state = d[6]
+            balance_25_32_state = d[7]
+            print(f"    Balance State: {balance_state}  Balance Current: {balance_cur}mA  Balance 1-8 State: {balance_1_8_state}  Balance 9-16 State: {balance_9_16_state}  Balance 17-24 State: {balance_17_24_state}  Balance 25-32 State: {balance_25_32_state}")
+        elif fc == 0x0B:    # Charging Information
+            rest_chg_time = int.from_bytes(d[0:2], "big")
+            wakeup_source = d[2]
+            print(f"    Remaining Charge Time: {rest_chg_time} minutes  Wakeup Source: {wakeup_source}")
+        elif fc == 0x0C:    # Calendar
+            year = 2000 + d[0] # Year offset from 2000
+            month = d[1]
+            day = d[2]
+            hour = d[3]
+            minute = d[4]
+            second = d[5]
+            print(f"    Calendar: {year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}")
+        elif fc == 0x0D:    # Limiting
+            limit_cur_state = d[0]
+            limit_cur = int.from_bytes(d[1:3], "big")
+            state_of_health = int.from_bytes(d[3:5], "big") 
+            pwm_duty = int.from_bytes(d[5:7], "big")
+            print(f"    Limit Current State: {limit_cur_state}  Limit Current: {limit_cur}mA  State of Health: {state_of_health}%  PWM Duty: {pwm_duty}%")
+        elif fc == 0x0E:    # Faults
+            pass
+        elif fc == 0x0F:    # AFE Data
+            pass
 
 def main():
     if len(sys.argv) < 2:
