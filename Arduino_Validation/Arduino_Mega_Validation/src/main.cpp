@@ -1,22 +1,16 @@
-// Import libraries
 #include <Arduino.h>
 #include <Wire.h>
 
-// put function declarations here:
-int myFunction(int, int);
-
 void setup() {
+  Wire.begin(); // primary, no address
   Serial.begin(9600);
-  Wire.begin();
 }
 
 void loop() {
-  int result = myFunction(2, 3);
-  Serial.print("Result: ");
-  Serial.println(result);
-}
+  Wire.beginTransmission(0x08); // send to secondary
+  Wire.write("Hello!");
+  Wire.endTransmission();
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  Serial.println("Sent: Hello!");
+  delay(1000);
 }
