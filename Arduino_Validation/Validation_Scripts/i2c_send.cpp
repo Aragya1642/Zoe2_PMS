@@ -1,6 +1,13 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+/*
+Pinout:
+Mega - SDA: 20, SCL: 21
+UNO - SDA: A4, SCL: A5
+Make sure to connect grounds together and use pull-up resistors (4.7kΩ)
+*/
+
 void setup() {
   Wire.begin(); // primary, no address
   Serial.begin(9600);
