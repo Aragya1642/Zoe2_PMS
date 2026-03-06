@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "ad5245.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -99,27 +100,18 @@ int main(void)
   MX_USART2_UART_Init();
 
   /* USER CODE BEGIN 2 */
-  uint8_t spi_message[] = "Hello SPI!";
-  uint8_t i2c_message[] = "Hello I2C!";
-  uint8_t i2c_divider[] = "----------";
-  uint8_t i2c_slave_address = 0x08 << 1;
+  uint8_t wiper_value = 0;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1){
     /* USER CODE END WHILE */
-	  // SPI transmit
-	  HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_RESET);
-	  HAL_SPI_Transmit(&hspi2, spi_message, sizeof(spi_message) - 1, HAL_MAX_DELAY);
-	  HAL_GPIO_WritePin(SPI2_CS_GPIO_Port, SPI2_CS_Pin, GPIO_PIN_SET);
+	  AD5245_SetWiper(&hi2c1, AD5245_ADDR_AD0_LOW, wiper_value);
+	  wiper_value++;
+	  HAL_Delay(50);
 
-	  // I2C Transmit
-	  HAL_I2C_Master_Transmit(&hi2c1, i2c_slave_address, i2c_message, sizeof(i2c_message) - 1, HAL_MAX_DELAY);
-	  HAL_I2C_Master_Transmit(&hi2c1, i2c_slave_address, i2c_divider, sizeof(i2c_divider) - 1, HAL_MAX_DELAY);
-
-	  HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
