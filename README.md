@@ -18,6 +18,6 @@
 - CAN bus requires additional hardware (CAN transceiver) for each board
 
 ### <u>STM32 L47RG Pinout Image:</u>
-![STM32L47RG Pinout](./Documentation_Assets/nucleo_l4_pinout.png)
+![STM32L47RG Pinout](./4_Documentation_Assets/nucleo_l4_pinout.png)
 ### <u>STM32 G431RB Pinout Image:</u>
-![STM32G431RB Pinout](./Documentation_Assets/nucleo_g4_pinout.png)
+![STM32G431RB Pinout](./4_Documentation_Assets/nucleo_g4_pinout.png)
