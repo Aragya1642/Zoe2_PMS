@@ -42,6 +42,7 @@
     - If AD0 is pulled high, the address will be 0x2D
 - You will not see a resistance across any of the terminals while the chip is powered off.
 - Arduino Library to control this chip exists here: [AD5245](https://github.com/RobTillaart/AD5245)
+- Run I2C at standard 100 KHz just to ensure that the logic shift does not give problems.
 
 ### <u>AD5245 Pinout Image</u>
 ![AD5245 Pinout](./4_Documentation_Assets/ad5245_pinout.png)
