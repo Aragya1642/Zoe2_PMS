@@ -1,0 +1,3 @@
+[submodule "2_Embedded/CanOpenSTM32"]
+	path = 2_Embedded/CanOpenSTM32
+	url = https://github.com/CANopenNode/CanOpenSTM32.git
