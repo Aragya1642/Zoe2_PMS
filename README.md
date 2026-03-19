@@ -1,5 +1,18 @@
 # Zoë2 Solar Power Management System
 
+## Cloning Repository Properly
+The repository has submodules for the following:
+- CANOpenSTM32
+- CANOpenNode (included within CANOpenSTM32)
+
+To clone and initialize these submodules properly, do the following steps:
+```
+git clone https://github.com/Aragya1642/Zoe2_PMS.git
+cd ./Zoe2_PMS
+cd ./2_Embedded
+git submodule update --init --recursive
+```
+
 ## Pinout Reference for Dev Boards
 
 | Board             | **I2C**       |               | ‖ | **SPI**       |               |               |               | ‖ | **CAN**       |               |
