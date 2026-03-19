@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +60,18 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+CAN_TxHeaderTypeDef TxHeader;
+CAN_RxHeaderTypeDef RxHeader;
+CAN_FilterTypeDef FilterConfig;
+uint8_t TxData[8];
+uint8_t RxData[8];
+uint32_t TxMailbox;
 
+int _write(int file, char *ptr, int len)
+{
+  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+  return len;
+}
 /* USER CODE END 0 */
 
 /**
@@ -95,6 +107,48 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  printf("\r\n=== CAN Normal Mode Test ===\r\n");
+
+  // Accept-all filter
+  FilterConfig.FilterBank = 0;
+  FilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  FilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  FilterConfig.FilterIdHigh = 0x0000;
+  FilterConfig.FilterIdLow = 0x0000;
+  FilterConfig.FilterMaskIdHigh = 0x0000;
+  FilterConfig.FilterMaskIdLow = 0x0000;
+  FilterConfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+  FilterConfig.FilterActivation = ENABLE;
+  HAL_CAN_ConfigFilter(&hcan1, &FilterConfig);
+
+  if (HAL_CAN_Start(&hcan1) != HAL_OK)
+  {
+    printf("CAN Start FAILED\r\n");
+    Error_Handler();
+  }
+  printf("CAN Started OK\r\n");
+
+  // Print CAN error state before first TX
+  printf("CAN ESR: 0x%08lX\r\n", hcan1.Instance->ESR);
+
+  // TX header
+  TxHeader.StdId = 0x123;
+  TxHeader.ExtId = 0;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.DLC = 8;
+  TxHeader.TransmitGlobalTime = DISABLE;
+
+  // Payload
+  TxData[0] = 0x09;
+  TxData[1] = 0x10;
+  TxData[2] = 0x2A;
+  TxData[3] = 0x3B;
+  TxData[4] = 0x4C;
+  TxData[5] = 0x5D;
+  TxData[6] = 0x6E;
+  TxData[7] = 0x7F;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -104,6 +158,41 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    TxData[0]++;
+
+    HAL_StatusTypeDef status;
+
+    if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) > 0)
+    {
+      status = HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+      printf("AddTxMessage status: %d  Mailbox: %lu\r\n", status, TxMailbox);
+
+      // Wait a bit then check if it actually went out
+      HAL_Delay(10);
+
+      if (HAL_CAN_IsTxMessagePending(&hcan1, TxMailbox))
+      {
+        printf("TX STILL PENDING - no ACK on bus!\r\n");
+      }
+      else
+      {
+        printf("TX complete - Data[0]=0x%02X\r\n", TxData[0]);
+        HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+      }
+    }
+    else
+    {
+      printf("No free mailbox!\r\n");
+    }
+
+    // Print error register every loop
+    uint32_t esr = hcan1.Instance->ESR;
+    printf("ESR: 0x%08lX  TEC=%lu REC=%lu\r\n",
+           esr,
+           (esr >> 16) & 0xFF,   // TX error counter
+           (esr >> 24) & 0xFF);  // RX error counter
+
+    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -179,7 +268,7 @@ static void MX_CAN1_Init(void)
   /* USER CODE END CAN1_Init 1 */
   hcan1.Instance = CAN1;
   hcan1.Init.Prescaler = 3;
-  hcan1.Init.Mode = CAN_MODE_LOOPBACK;
+  hcan1.Init.Mode = CAN_MODE_NORMAL;
   hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan1.Init.TimeSeg1 = CAN_BS1_13TQ;
   hcan1.Init.TimeSeg2 = CAN_BS2_2TQ;
