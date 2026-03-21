@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "CO_app_STM32.h"
+#include "OD.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -116,7 +117,18 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  // Make sure to add the LED outputs for CAN Status - this is in the tutorial.
 	  canopen_app_process();
+
+	  OD_PERSIST_COMM.x6000_counter++;	// This is how you access raw OD variables in the memory
+
+	  OD_set_u32(OD_find(OD, 0x6000), 0x00, 123, false);	// This is a safer way to access variables and set their values
+
+//	  if (OD_PERSIST_COMM.x6000_counter != old_counter){					// This is a good way to do change of state implementation
+//		  CO_TPDOsendRequest(&canopenNodeSTM32.canOpenStack->TPDO[0]);		// This manually transmits the first TPDO
+//	  }
+
+	  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -328,7 +340,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		// Connect the timer interrupt to the TPDO stuff
+{
+  if (htim == &htim7)
+  {
+    canopen_app_interrupt();
+  }
+}
 /* USER CODE END 4 */
 
 /**

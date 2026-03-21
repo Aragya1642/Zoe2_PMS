@@ -75,3 +75,8 @@ git submodule update --init --recursive
 
 ### <u>USB/CAN Adapter Pinout Image</u>
 ![USB/CAN Adapter Pinout](./4_Documentation_Assets/usb_can_adapter_pinout.png)
+
+## Implementation Notes
+- For the Converter
+    - When an external clock is connected to the SYNC input it is important that the external clock signal is not continuously high when SWEN is high. This can result in an undefined state and potentially cause a failure of the power stage. When the SWEN pin is high the external clock signal on SYNC must be toggling, or it must be low. The safest way is to keep SWEN low until the external clock is running, and to set SWEN low before the external clock stops toggling.
+    - Essentially, to turn off - set SWEN low for slave then master and to turn on set SWEN high for master then slave
