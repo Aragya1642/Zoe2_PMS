@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "max31855.h"
+#include <stdio.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,6 +62,12 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+/* Printf retargeting over UART2 */
+int _write(int file, char *ptr, int len){
+    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+    return len;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -95,6 +103,11 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  printf("\r\n--- MAX31855 Thermocouple Read Test ---\r\n\r\n");
+
+  MAX31855_Data tc;
+  HAL_StatusTypeDef status;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -102,7 +115,18 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+		status = MAX31855_Read(&hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin, &tc);
 
+		if (status != HAL_OK) {
+			printf("SPI ERROR (0x%02X)\r\n", status);
+		} else if (tc.fault) {
+			printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+			tc.fault_scv, tc.fault_scg, tc.fault_oc);
+		} else {
+			printf("TC: %8.2f C  |  CJ: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+		}
+
+		HAL_Delay(250);  /* Read ~4 times per second (conversion takes ~100ms) */
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

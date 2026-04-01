@@ -1,0 +1,4 @@
+../Core/Src/max31855.c:14:19:MAX31855_ReadRaw	2
+../Core/Src/max31855.c:43:7:MAX31855_GetThermocoupleTemp	3
+../Core/Src/max31855.c:62:7:MAX31855_GetColdJunctionTemp	2
+../Core/Src/max31855.c:79:19:MAX31855_Read	2
