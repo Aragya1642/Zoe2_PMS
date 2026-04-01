@@ -1,0 +1,8 @@
+../Core/Src/ads1115.c:18:17:ADS1115_PackConfig	1
+../Core/Src/ads1115.c:33:19:ADS1115_Init	1
+../Core/Src/ads1115.c:42:19:ADS1115_WriteRegister	1
+../Core/Src/ads1115.c:52:19:ADS1115_ReadRegister	2
+../Core/Src/ads1115.c:70:19:ADS1115_SetChannel	1
+../Core/Src/ads1115.c:80:19:ADS1115_ReadConversion	2
+../Core/Src/ads1115.c:94:19:ADS1115_ReadSingleShot	5
+../Core/Src/ads1115.c:133:7:ADS1115_ConvertToMillivolts	11
