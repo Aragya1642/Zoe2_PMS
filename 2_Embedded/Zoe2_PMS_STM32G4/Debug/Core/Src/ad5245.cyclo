@@ -1,0 +1,5 @@
+../Core/Src/ad5245.c:24:19:AD5245_SetWiper	1
+../Core/Src/ad5245.c:36:19:AD5245_ReadWiper	1
+../Core/Src/ad5245.c:46:19:AD5245_MidscaleReset	1
+../Core/Src/ad5245.c:57:19:AD5245_Shutdown	1
+../Core/Src/ad5245.c:71:19:AD5245_WakeUp	1
