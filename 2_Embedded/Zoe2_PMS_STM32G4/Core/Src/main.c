@@ -56,7 +56,18 @@ UART_HandleTypeDef huart3;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
+static const uint16_t channels[] = {
+    ADS1115_MUX_SINGLE_0,
+    ADS1115_MUX_SINGLE_1,
+    ADS1115_MUX_SINGLE_2,
+    ADS1115_MUX_SINGLE_3,
+};
 
+static const char *channel_names[] = {
+    "AIN0", "AIN1", "AIN2", "AIN3",
+};
+
+#define NUM_CHANNELS  (sizeof(channels) / sizeof(channels[0]))
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -122,7 +133,25 @@ int main(void)
   MX_USB_PCD_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+  printf("Scanning I2C2...\r\n");
+  for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+      if (HAL_I2C_IsDeviceReady(&hi2c2, (addr << 1), 3, 10) == HAL_OK) {
+          printf("  Found device at 0x%02X\r\n", addr);
+      }
+  }
+  printf("Done.\r\n");
 
+  /* ---- ADS1115 Configuration ---- */
+  	ADS1115_Config cfg = {
+  		.mux       = ADS1115_MUX_SINGLE_0,
+  		.pga       = ADS1115_PGA_4_096V,
+  		.mode      = ADS1115_MODE_SINGLE,
+  		.dr        = ADS1115_DR_128SPS,
+  		.comp_mode = ADS1115_COMP_MODE_TRAD,
+  		.comp_pol  = ADS1115_COMP_POL_LOW,
+  		.comp_lat  = ADS1115_COMP_LAT_OFF,
+  		.comp_que  = ADS1115_COMP_QUE_DISABLE,
+  	};
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -132,20 +161,39 @@ int main(void)
     /* USER CODE END WHILE */
 	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
 	  HAL_Delay(250);
-
 	  HAL_StatusTypeDef status;
 
-	  status = AD5245_MidscaleReset(&hi2c1, AD5245_ADDR_AD0_LOW);
+	  status = AD5245_MidscaleReset(&hi2c2, AD5245_ADDR_AD0_LOW);
 	  printf("Reset Status: %d\r\n", status);
 	  HAL_Delay(2000);
 
 	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
 	  HAL_Delay(250);
 
-	  status = AD5245_SetWiper(&hi2c1, AD5245_ADDR_AD0_LOW, 0x7F);
+	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 200);
 	  printf("Write Status: %d\r\n", status);
 	  HAL_Delay(2000);
 
+	  int16_t raw;
+	  float mv;
+
+	  for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+	  		/* Switch channel and trigger conversion */
+	  		cfg.mux = channels[ch];
+	  		status = ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw);
+
+	  		if (status == HAL_OK) {
+	  			mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
+	  			printf("%s: raw=%6d  %8.3f mV\r\n", channel_names[ch], raw, mv);
+	  		} else if (status == HAL_TIMEOUT) {
+	  			printf("%s: TIMEOUT\r\n", channel_names[ch]);
+	  		} else {
+	  			printf("%s: I2C ERROR (0x%02X)\r\n", channel_names[ch], status);
+	  		}
+	  	}
+
+	  		printf("----\r\n");
+	  		HAL_Delay(500);
 
     /* USER CODE BEGIN 3 */
   }
