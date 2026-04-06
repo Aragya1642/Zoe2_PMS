@@ -61,6 +61,10 @@ void Error_Handler(void);
 #define CAN_NMT_STATUS_GPIO_Port GPIOG
 #define CAN_ERROR_STATE_Pin GPIO_PIN_1
 #define CAN_ERROR_STATE_GPIO_Port GPIOG
+#define SWEN_Master_Pin GPIO_PIN_4
+#define SWEN_Master_GPIO_Port GPIOD
+#define SD_Master_Pin GPIO_PIN_6
+#define SD_Master_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 
