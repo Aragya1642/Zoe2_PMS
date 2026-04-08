@@ -69,6 +69,9 @@ static const char *channel_names[] = {
 };
 
 #define NUM_CHANNELS  (sizeof(channels) / sizeof(channels[0]))
+
+static FDCAN_TxHeaderTypeDef fdcan2_txHeader;
+static uint8_t fdcan2_txData[8];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -132,6 +135,8 @@ int main(void)
   MX_USB_PCD_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+  printf("alive\r\n");
+
   printf("Scanning I2C2...\r\n");
   for (uint8_t addr = 0x08; addr < 0x78; addr++) {
       if (HAL_I2C_IsDeviceReady(&hi2c2, (addr << 1), 3, 10) == HAL_OK) {
@@ -154,6 +159,29 @@ int main(void)
 
   	MAX31855_Data tc;
   	HAL_StatusTypeDef status;
+
+  	/* ---- Enable CAN transceiver before starting FDCAN ---- */
+  	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
+  	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
+  	HAL_Delay(10);
+
+  	/* ---- Start FDCAN2 (non-fatal for debugging) ---- */
+  	if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK) {
+  		printf("FDCAN2 start FAILED\r\n");
+  	} else {
+  		printf("FDCAN2 started OK\r\n");
+  	}
+
+  	/* ---- Prepare FDCAN2 TX header (reused each send) ---- */
+  	fdcan2_txHeader.Identifier          = 0x123;
+  	fdcan2_txHeader.IdType              = FDCAN_STANDARD_ID;
+  	fdcan2_txHeader.TxFrameType         = FDCAN_DATA_FRAME;
+  	fdcan2_txHeader.DataLength          = FDCAN_DLC_BYTES_8;
+  	fdcan2_txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  	fdcan2_txHeader.BitRateSwitch       = FDCAN_BRS_OFF;
+  	fdcan2_txHeader.FDFormat            = FDCAN_CLASSIC_CAN;
+  	fdcan2_txHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
+  	fdcan2_txHeader.MessageMarker       = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -163,9 +191,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
-
 	HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
 	HAL_Delay(250);
 
@@ -203,6 +228,22 @@ int main(void)
 		tc.fault_scv, tc.fault_scg, tc.fault_oc);
 	} else {
 		printf("TC: %8.2f C  |  CJ: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	}
+
+	/* ---- Send FDCAN2 message ---- */
+	fdcan2_txData[0] = 0x01;
+	fdcan2_txData[1] = 0x02;
+	fdcan2_txData[2] = 0x03;
+	fdcan2_txData[3] = 0x04;
+	fdcan2_txData[4] = 0x05;
+	fdcan2_txData[5] = 0x06;
+	fdcan2_txData[6] = 0x07;
+	fdcan2_txData[7] = 0x08;
+
+	if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &fdcan2_txHeader, fdcan2_txData) != HAL_OK) {
+		printf("FDCAN2 TX failed\r\n");
+	} else {
+		printf("FDCAN2 TX OK (ID=0x%03lX)\r\n", fdcan2_txHeader.Identifier);
 	}
 
 	printf("----\r\n");
@@ -322,10 +363,10 @@ static void MX_FDCAN2_Init(void)
   hfdcan2.Init.AutoRetransmission = DISABLE;
   hfdcan2.Init.TransmitPause = DISABLE;
   hfdcan2.Init.ProtocolException = DISABLE;
-  hfdcan2.Init.NominalPrescaler = 16;
+  hfdcan2.Init.NominalPrescaler = 12;
   hfdcan2.Init.NominalSyncJumpWidth = 1;
-  hfdcan2.Init.NominalTimeSeg1 = 10;
-  hfdcan2.Init.NominalTimeSeg2 = 1;
+  hfdcan2.Init.NominalTimeSeg1 = 13;
+  hfdcan2.Init.NominalTimeSeg2 = 2;
   hfdcan2.Init.DataPrescaler = 1;
   hfdcan2.Init.DataSyncJumpWidth = 1;
   hfdcan2.Init.DataTimeSeg1 = 1;
