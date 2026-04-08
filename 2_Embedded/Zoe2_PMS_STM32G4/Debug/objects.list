@@ -1,6 +1,7 @@
 "./Core/Src/ad5245.o"
 "./Core/Src/ads1115.o"
 "./Core/Src/main.o"
+"./Core/Src/max31855.o"
 "./Core/Src/stm32g4xx_hal_msp.o"
 "./Core/Src/stm32g4xx_it.o"
 "./Core/Src/syscalls.o"

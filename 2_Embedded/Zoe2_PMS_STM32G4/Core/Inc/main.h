@@ -61,6 +61,12 @@ void Error_Handler(void);
 #define CAN_NMT_STATUS_GPIO_Port GPIOG
 #define CAN_ERROR_STATE_Pin GPIO_PIN_1
 #define CAN_ERROR_STATE_GPIO_Port GPIOG
+#define THERMO_CS1_Pin GPIO_PIN_8
+#define THERMO_CS1_GPIO_Port GPIOC
+#define THERMO_CS2_Pin GPIO_PIN_2
+#define THERMO_CS2_GPIO_Port GPIOD
+#define THERMO_CS3_Pin GPIO_PIN_3
+#define THERMO_CS3_GPIO_Port GPIOD
 #define SWEN_Master_Pin GPIO_PIN_4
 #define SWEN_Master_GPIO_Port GPIOD
 #define SD_Master_Pin GPIO_PIN_6

@@ -23,8 +23,10 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <ad5245.h>
 #include <ads1115.h>
+#include <max31855.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -149,6 +151,9 @@ int main(void)
   		.comp_lat  = ADS1115_COMP_LAT_OFF,
   		.comp_que  = ADS1115_COMP_QUE_DISABLE,
   	};
+
+  	MAX31855_Data tc;
+  	HAL_StatusTypeDef status;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -158,40 +163,50 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
 
-	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
-	  HAL_Delay(250);
+	HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
+	HAL_Delay(250);
 
-	  HAL_StatusTypeDef status;
-	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 240);
-	  printf("Write Status: %d\r\n", status);
-	  HAL_Delay(2000);
+	status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 240);
+	printf("Write Status: %d\r\n", status);
+	HAL_Delay(2000);
 
-	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
-	  HAL_Delay(250);
+	HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
+	HAL_Delay(250);
 
-	  int16_t raw;
-	  float mv;
+	int16_t raw;
+	float mv;
 
-	  for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
-			/* Switch channel and trigger conversion */
-			cfg.mux = channels[ch];
-			status = ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw);
+	for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+		/* Switch channel and trigger conversion */
+		cfg.mux = channels[ch];
+		status = ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw);
 
-			if (status == HAL_OK) {
-				mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
-				printf("%s: raw=%6d  %8.3f mV\r\n", channel_names[ch], raw, mv);
-			} else if (status == HAL_TIMEOUT) {
-				printf("%s: TIMEOUT\r\n", channel_names[ch]);
-			} else {
-				printf("%s: I2C ERROR (0x%02X)\r\n", channel_names[ch], status);
-			}
+		if (status == HAL_OK) {
+			mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
+			printf("%s: raw=%6d  %8.3f mV\r\n", channel_names[ch], raw, mv);
+		} else if (status == HAL_TIMEOUT) {
+			printf("%s: TIMEOUT\r\n", channel_names[ch]);
+		} else {
+			printf("%s: I2C ERROR (0x%02X)\r\n", channel_names[ch], status);
 		}
+	}
 
-			printf("----\r\n");
-			HAL_Delay(500);
+	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);
+
+	if (status != HAL_OK) {
+		printf("SPI ERROR (0x%02X)\r\n", status);
+	} else if (tc.fault) {
+		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+	} else {
+		printf("TC: %8.2f C  |  CJ: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	}
+
+	printf("----\r\n");
+	HAL_Delay(500);
   }
   /* USER CODE END 3 */
 }
@@ -264,10 +279,10 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = DISABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 16;
+  hfdcan1.Init.NominalPrescaler = 3;
   hfdcan1.Init.NominalSyncJumpWidth = 1;
-  hfdcan1.Init.NominalTimeSeg1 = 1;
-  hfdcan1.Init.NominalTimeSeg2 = 1;
+  hfdcan1.Init.NominalTimeSeg1 = 13;
+  hfdcan1.Init.NominalTimeSeg2 = 2;
   hfdcan1.Init.DataPrescaler = 1;
   hfdcan1.Init.DataSyncJumpWidth = 1;
   hfdcan1.Init.DataTimeSeg1 = 1;
@@ -309,7 +324,7 @@ static void MX_FDCAN2_Init(void)
   hfdcan2.Init.ProtocolException = DISABLE;
   hfdcan2.Init.NominalPrescaler = 16;
   hfdcan2.Init.NominalSyncJumpWidth = 1;
-  hfdcan2.Init.NominalTimeSeg1 = 1;
+  hfdcan2.Init.NominalTimeSeg1 = 10;
   hfdcan2.Init.NominalTimeSeg2 = 1;
   hfdcan2.Init.DataPrescaler = 1;
   hfdcan2.Init.DataSyncJumpWidth = 1;
@@ -395,17 +410,17 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
@@ -529,11 +544,13 @@ static void MX_GPIO_Init(void)
                           |GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_2|GPIO_PIN_3|SWEN_Master_Pin|GPIO_PIN_5
-                          |SD_Master_Pin|GPIO_PIN_7, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, THERMO_CS2_Pin|THERMO_CS3_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin|GPIO_PIN_5|SD_Master_Pin|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PE2 PE3 PE0 PE1 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_0|GPIO_PIN_1;
@@ -570,12 +587,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  /*Configure GPIO pin : THERMO_CS1_Pin */
+  GPIO_InitStruct.Pin = THERMO_CS1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(THERMO_CS1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PC10 */
   GPIO_InitStruct.Pin = GPIO_PIN_10;
@@ -583,9 +600,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD2 PD3 SWEN_Master_Pin PD5
+  /*Configure GPIO pins : THERMO_CS2_Pin THERMO_CS3_Pin SWEN_Master_Pin PD5
                            SD_Master_Pin PD7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|SWEN_Master_Pin|GPIO_PIN_5
+  GPIO_InitStruct.Pin = THERMO_CS2_Pin|THERMO_CS3_Pin|SWEN_Master_Pin|GPIO_PIN_5
                           |SD_Master_Pin|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
