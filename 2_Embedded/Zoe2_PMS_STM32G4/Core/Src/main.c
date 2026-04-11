@@ -65,7 +65,7 @@ static const uint16_t channels[] = {
 };
 
 static const char *channel_names[] = {
-    "AIN0", "AIN1", "AIN2", "AIN3",
+    "Input Current (AIN0)", "Output Current (AIN1)", "Input Voltage (AIN2)", "Output Voltage (AIN3)",
 };
 
 #define NUM_CHANNELS  (sizeof(channels) / sizeof(channels[0]))
@@ -191,10 +191,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
 	HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
 	HAL_Delay(250);
 
-	status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 240);
+	status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 230);
 	printf("Write Status: %d\r\n", status);
 	HAL_Delay(2000);
 
@@ -211,7 +213,8 @@ int main(void)
 
 		if (status == HAL_OK) {
 			mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
-			printf("%s: raw=%6d  %8.3f mV\r\n", channel_names[ch], raw, mv);
+			mv = (ch < 2) ? (mv * 50) / 0.0025 : (mv * 20); // Check channel ? Current calculation to A : Voltage calculation to V
+			(ch < 2) ? printf("%s: raw=%6d  %8.3f A\r\n", channel_names[ch], raw, mv) : printf("%s: raw=%6d  %8.3f V\r\n", channel_names[ch], raw, mv); // Print according to channel
 		} else if (status == HAL_TIMEOUT) {
 			printf("%s: TIMEOUT\r\n", channel_names[ch]);
 		} else {
@@ -219,15 +222,34 @@ int main(void)
 		}
 	}
 
-	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);
-
+	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);	// Read from J_Temp3
 	if (status != HAL_OK) {
 		printf("SPI ERROR (0x%02X)\r\n", status);
 	} else if (tc.fault) {
 		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
 		tc.fault_scv, tc.fault_scg, tc.fault_oc);
 	} else {
-		printf("TC: %8.2f C  |  CJ: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+		printf("TC3: %8.2f C  |  CJ3: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	}
+
+	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc);	// Read from J_Temp2
+	if (status != HAL_OK) {
+		printf("SPI ERROR (0x%02X)\r\n", status);
+	} else if (tc.fault) {
+		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+	} else {
+		printf("TC2: %8.2f C  |  CJ2: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	}
+
+	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc);	// Read from J_Temp1
+	if (status != HAL_OK) {
+		printf("SPI ERROR (0x%02X)\r\n", status);
+	} else if (tc.fault) {
+		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+	} else {
+		printf("TC1: %8.2f C  |  CJ1: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
 	}
 
 	/* ---- Send FDCAN2 message ---- */
