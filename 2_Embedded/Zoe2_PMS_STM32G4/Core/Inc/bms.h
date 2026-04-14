@@ -61,7 +61,6 @@
  */
 typedef struct{
     uint16_t cell_mv[BMS_MAX_CELLS];    /**< Per-cell voltage in mV (0-indexed).          */
-    uint8_t  cells_received;            /**< Number of cell readings updated this cycle.   */
 } BMS_CellVoltages_t;
 
 /**
@@ -74,7 +73,6 @@ typedef struct{
  */
 typedef struct {
     int8_t   temp_c[BMS_MAX_TEMP_SENSORS];  /**< Per-sensor temperature in °C (0-indexed, offset-corrected). */
-    uint8_t  sensors_received;              /**< Number of sensor readings updated.                          */
 } BMS_Temperatures_t;
 
 /**
