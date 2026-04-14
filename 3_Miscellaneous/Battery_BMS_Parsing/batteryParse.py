@@ -106,10 +106,10 @@ def process_message(msg, out):
             out.write(f"    Temperature group {group}: {t1} {t2} °C\n")
         elif fc == 0x02:    # Total Information 0
             sum_v = int.from_bytes(d[0:2], "big") * 0.1 # Scale factor of 0.1 V/bit
-            curr = int.from_bytes(d[2:4], "big") - 30000 * 0.1 # Scale factor of 0.1 A/bit with offset of -3000 A
+            curr = (int.from_bytes(d[2:4], "big") - 30000) * 0.1 # Scale factor of 0.1 A/bit with offset of -3000 A
             soc = int.from_bytes(d[4:6], "big") * 0.1 # Scale factor of 0.1 %
             life = d[6] # Life cycle count
-            out.write(f"    Total voltage: {sum_v}mV  Current: {curr}mA  SOC: {soc}%  Life: {life}\n")
+            out.write(f"    Total voltage: {sum_v}V  Current: {curr}A  SOC: {soc}%  Life: {life}\n")
         elif fc == 0x03:    # Total Information 1
             power = int.from_bytes(d[0:2], "big")
             # tot_energy = int.from_bytes(d[2:4], "big")

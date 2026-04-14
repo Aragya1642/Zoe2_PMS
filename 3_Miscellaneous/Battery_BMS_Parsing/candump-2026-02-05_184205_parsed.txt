@@ -127,15 +127,15 @@
   Cell 19: 3625 mV
   Cell 20: 3624 mV
 [23:42:13.933] ID=04018001  func=0x01  mod=1  data=013F3FFFFFFFFFFF
-    Temperature group 1: 23 23 °C
+    Temperature group 1: 23 23 ï¿½C
 [23:42:13.934] ID=04028001  func=0x02  mod=1  data=02D4752D0182EFFF
-    Total voltage: 72.4mV  Current: 26997.0mA  SOC: 38.6%  Life: 239
+    Total voltage: 72.4V  Current: -0.30000000000000004A  SOC: 38.6%  Life: 239
 [23:42:13.942] ID=04038001  func=0x03  mod=1  data=0015FFFF45FFFFFF
-    Power: 21W  MOS Temp: 29°C
+    Power: 21W  MOS Temp: 29ï¿½C
 [23:42:13.943] ID=04048001  func=0x04  mod=1  data=0E2C100E220C000A
     Max Voltage: 3628mV  Max Voltage Cell: 16  Min Voltage: 3618mV  Min Voltage Cell: 12  Diff Voltage: 10mV
 [23:42:13.944] ID=04058001  func=0x05  mod=1  data=3F013F0100FFFFFF
-    Max Temp: 23°C  Max Temp Unit: 1  Min Temp: 23°C  Min Temp Unit: 1  Diff Temp: 0°C
+    Max Temp: 23ï¿½C  Max Temp Unit: 1  Min Temp: 23ï¿½C  Min Temp Unit: 1  Diff Temp: 0ï¿½C
 [23:42:13.952] ID=04068001  func=0x06  mod=1  data=0101000000FFFFFF
     MOS States - Charge: 1  Discharge: 1  Precharge: 0  Heat: 0  Fan: 0
 [23:42:13.953] ID=04078001  func=0x07  mod=1  data=000000000001FFFF
@@ -250,11 +250,11 @@
     Balance State: 0  Balance Current: 30000mA  Balance 1-8 State: 0  Balance 9-16 State: 0  Balance 17-24 State: 0  Balance 25-32 State: 0
 [23:42:14.852] ID=04108001  func=0x10  mod=1  data=000000FFFFFFFFFF
 [23:42:14.913] ID=04018001  func=0x01  mod=1  data=013F3FFFFFFFFFFF
-    Temperature group 1: 23 23 °C
+    Temperature group 1: 23 23 ï¿½C
 [23:42:14.914] ID=04028001  func=0x02  mod=1  data=02D4752D0182F0FF
-    Total voltage: 72.4mV  Current: 26997.0mA  SOC: 38.6%  Life: 240
+    Total voltage: 72.4V  Current: -0.30000000000000004A  SOC: 38.6%  Life: 240
 [23:42:14.915] ID=04058001  func=0x05  mod=1  data=3F013F0100FFFFFF
-    Max Temp: 23°C  Max Temp Unit: 1  Min Temp: 23°C  Min Temp Unit: 1  Diff Temp: 0°C
+    Max Temp: 23ï¿½C  Max Temp Unit: 1  Min Temp: 23ï¿½C  Min Temp Unit: 1  Diff Temp: 0ï¿½C
 [23:42:14.922] ID=04068001  func=0x06  mod=1  data=0101000000FFFFFF
     MOS States - Charge: 1  Discharge: 1  Precharge: 0  Heat: 0  Fan: 0
 [23:42:14.923] ID=04078001  func=0x07  mod=1  data=000000000001FFFF
@@ -364,11 +364,11 @@
     Balance State: 0  Balance Current: 30000mA  Balance 1-8 State: 0  Balance 9-16 State: 0  Balance 17-24 State: 0  Balance 25-32 State: 0
 [23:42:15.752] ID=04108001  func=0x10  mod=1  data=000000FFFFFFFFFF
 [23:42:15.913] ID=04018001  func=0x01  mod=1  data=013F3FFFFFFFFFFF
-    Temperature group 1: 23 23 °C
+    Temperature group 1: 23 23 ï¿½C
 [23:42:15.914] ID=04028001  func=0x02  mod=1  data=02D4752D0182F1FF
-    Total voltage: 72.4mV  Current: 26997.0mA  SOC: 38.6%  Life: 241
+    Total voltage: 72.4V  Current: -0.30000000000000004A  SOC: 38.6%  Life: 241
 [23:42:15.915] ID=04058001  func=0x05  mod=1  data=3F013F0100FFFFFF
-    Max Temp: 23°C  Max Temp Unit: 1  Min Temp: 23°C  Min Temp Unit: 1  Diff Temp: 0°C
+    Max Temp: 23ï¿½C  Max Temp Unit: 1  Min Temp: 23ï¿½C  Min Temp Unit: 1  Diff Temp: 0ï¿½C
 [23:42:15.922] ID=04068001  func=0x06  mod=1  data=0101000000FFFFFF
     MOS States - Charge: 1  Discharge: 1  Precharge: 0  Heat: 0  Fan: 0
 [23:42:15.923] ID=04078001  func=0x07  mod=1  data=000000000001FFFF
@@ -505,15 +505,15 @@
   Cell 19: 3624 mV
   Cell 20: 3624 mV
 [23:42:16.943] ID=04018001  func=0x01  mod=1  data=013F3FFFFFFFFFFF
-    Temperature group 1: 23 23 °C
+    Temperature group 1: 23 23 ï¿½C
 [23:42:16.944] ID=04028001  func=0x02  mod=1  data=02D4752D0182F2FF
-    Total voltage: 72.4mV  Current: 26997.0mA  SOC: 38.6%  Life: 242
+    Total voltage: 72.4V  Current: -0.30000000000000004A  SOC: 38.6%  Life: 242
 [23:42:16.952] ID=04038001  func=0x03  mod=1  data=0015FFFF45FFFFFF
-    Power: 21W  MOS Temp: 29°C
+    Power: 21W  MOS Temp: 29ï¿½C
 [23:42:16.953] ID=04048001  func=0x04  mod=1  data=0E2C100E210C000B
     Max Voltage: 3628mV  Max Voltage Cell: 16  Min Voltage: 3617mV  Min Voltage Cell: 12  Diff Voltage: 11mV
 [23:42:16.954] ID=04058001  func=0x05  mod=1  data=3F013F0100FFFFFF
-    Max Temp: 23°C  Max Temp Unit: 1  Min Temp: 23°C  Min Temp Unit: 1  Diff Temp: 0°C
+    Max Temp: 23ï¿½C  Max Temp Unit: 1  Min Temp: 23ï¿½C  Min Temp Unit: 1  Diff Temp: 0ï¿½C
 [23:42:16.962] ID=04068001  func=0x06  mod=1  data=0101000000FFFFFF
     MOS States - Charge: 1  Discharge: 1  Precharge: 0  Heat: 0  Fan: 0
 [23:42:16.963] ID=04078001  func=0x07  mod=1  data=000000000001FFFF
@@ -628,11 +628,11 @@
     Balance State: 0  Balance Current: 30000mA  Balance 1-8 State: 0  Balance 9-16 State: 0  Balance 17-24 State: 0  Balance 25-32 State: 0
 [23:42:17.852] ID=04108001  func=0x10  mod=1  data=000000FFFFFFFFFF
 [23:42:17.922] ID=04018001  func=0x01  mod=1  data=013F3FFFFFFFFFFF
-    Temperature group 1: 23 23 °C
+    Temperature group 1: 23 23 ï¿½C
 [23:42:17.923] ID=04028001  func=0x02  mod=1  data=02D4752C0182F3FF
-    Total voltage: 72.4mV  Current: 26996.0mA  SOC: 38.6%  Life: 243
+    Total voltage: 72.4V  Current: -0.4A  SOC: 38.6%  Life: 243
 [23:42:17.924] ID=04058001  func=0x05  mod=1  data=3F013F0100FFFFFF
-    Max Temp: 23°C  Max Temp Unit: 1  Min Temp: 23°C  Min Temp Unit: 1  Diff Temp: 0°C
+    Max Temp: 23ï¿½C  Max Temp Unit: 1  Min Temp: 23ï¿½C  Min Temp Unit: 1  Diff Temp: 0ï¿½C
 [23:42:17.932] ID=04068001  func=0x06  mod=1  data=0101000000FFFFFF
     MOS States - Charge: 1  Discharge: 1  Precharge: 0  Heat: 0  Fan: 0
 [23:42:17.933] ID=04078001  func=0x07  mod=1  data=000000000001FFFF
