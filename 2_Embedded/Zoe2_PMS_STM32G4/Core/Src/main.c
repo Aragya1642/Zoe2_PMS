@@ -184,9 +184,9 @@ int main(void)
   	/* ---- Initialize MPPT ---- */
   	MPPT_Config_t mppt_cfg = {
   	    .wiper_min     = 154,                    // your custom minimum
-  	    .wiper_max     = MPPT_WIPER_MAX,
-  	    .po_step       = MPPT_PO_STEP_DEFAULT,
-  	    .scan_step     = MPPT_SCAN_STEP_DEFAULT,
+  	    .wiper_max     = 255,
+  	    .po_step       = 1,
+  	    .scan_step     = 5,
   	    .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
   	};
   	MPPT_Init(&mppt_cfg);
@@ -214,9 +214,13 @@ int main(void)
 //	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 255);
 //	  printf("Write Status: %d\r\n", status);
 
-	  // MPPT and ADC
+	  // Heartbeat
+	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
+	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
+
+	  // MPPT + ADC + Print (every 50 ms)
 	  static uint32_t last_mppt = 0;
-	  if (HAL_GetTick() - last_mppt >= 200) {
+	  if (HAL_GetTick() - last_mppt >= 50) {
 		  last_mppt = HAL_GetTick();
 
 		  int16_t raw;
@@ -237,41 +241,35 @@ int main(void)
 
 		  uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
 		  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
-		  printf("Write Status: %d\r\n", status);
+
+		  const MPPT_Data_t *mppt = MPPT_GetData();
+		  printf("MPPT: tick=%lu  wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
+				 HAL_GetTick(), mppt->wiper, mppt->state,
+				 mppt->power_W, mppt->in_voltage_V, mppt->in_current_A);
+		  printf("      Vout=%.2fV  Iout=%.3f A\r\n",
+				 mppt->out_voltage_V, mppt->out_current_A);
+		  printf("----\r\n");
 	  }
 
-	  // Thermocouple reads
-	  static uint32_t last_tc = 0;
-	  if (HAL_GetTick() - last_tc >= 1000) {
-		  last_tc = HAL_GetTick();
+	  //	  // Thermocouple reads (uncomment when needed)
+	  //	  static uint32_t last_tc = 0;
+	  //	  if (HAL_GetTick() - last_tc >= 1000) {
+	  //		  last_tc = HAL_GetTick();
+	  //
+	  //		  MAX31855_Data tc;
+	  //		  if (MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc) == HAL_OK && !tc.fault) {
+	  //			  printf("TC3: %.2f C  |  CJ3: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	  //		  }
+	  //
+	  //		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc) == HAL_OK && !tc.fault) {
+	  //			  printf("TC2: %.2f C  |  CJ2: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	  //		  }
+	  //
+	  //		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc) == HAL_OK && !tc.fault) {
+	  //			  printf("TC1: %.2f C  |  CJ1: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+	  //		  }
+	  //	  }
 
-		  MAX31855_Data tc;
-		  if (MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc) == HAL_OK && !tc.fault) {
-			  printf("TC3: %.2f C  |  CJ3: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-		  }
-
-		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc) == HAL_OK && !tc.fault) {
-			  printf("TC2: %.2f C  |  CJ2: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-		  }
-
-		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc) == HAL_OK && !tc.fault) {
-			  printf("TC1: %.2f C  |  CJ1: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-		  }
-	  }
-
-	  // Debug Print
-	  static uint32_t last_print = 0;
-	  if (HAL_GetTick() - last_print >= 1000) {
-	          last_print = HAL_GetTick();
-
-	          const MPPT_Data_t *mppt = MPPT_GetData();
-	          printf("MPPT: wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
-	                 mppt->wiper, mppt->state,
-	                 mppt->power_W, mppt->in_voltage_V, mppt->in_current_A);
-	          printf("      Vout=%.2fV  Iout=%.3fA\r\n",
-	                 mppt->out_voltage_V, mppt->out_current_A);
-	          printf("----\r\n");
-	  }
 
 //	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);	// Read from J_Temp3
 //	if (status != HAL_OK) {
@@ -560,7 +558,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
+  huart3.Init.BaudRate = 250000;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;

@@ -48,12 +48,12 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────────────
 
 MPPT_LINE1 = re.compile(
-    r"MPPT:\s*wiper=(\d+)\s+state=(\d+)\s+Pin=([\d.-]+)W\s+"
+    r"MPPT:\s*tick=(\d+)\s+wiper=(\d+)\s+state=(\d+)\s+Pin=([\d.-]+)W\s+"
     r"Vin=([\d.-]+)V\s+Iin=([\d.-]+)A"
 )
 
 MPPT_LINE2 = re.compile(
-    r"Vout=([\d.-]+)V\s+Iout=([\d.-]+)A"
+    r"Vout=([\d.-]+)\s*V\s+Iout=([\d.-]+)\s*A"
 )
 
 TC_LINE = re.compile(
@@ -73,7 +73,7 @@ class Sample:
     """One snapshot of all telemetry."""
 
     __slots__ = [
-        "timestamp", "elapsed_s",
+        "timestamp", "elapsed_s", "mcu_tick_ms",
         # MPPT
         "wiper", "state", "power_in_W", "v_in", "i_in", "v_out", "i_out",
         "wiper_status",
@@ -82,7 +82,7 @@ class Sample:
     ]
 
     CSV_HEADER = [
-        "timestamp", "elapsed_s",
+        "timestamp", "elapsed_s", "mcu_tick_ms",
         "wiper", "state", "power_in_W", "v_in", "i_in", "v_out", "i_out",
         "wiper_status",
         "tc1", "cj1", "tc2", "cj2", "tc3", "cj3",
@@ -91,7 +91,8 @@ class Sample:
     def __init__(self):
         self.timestamp = ""
         self.elapsed_s = 0.0
-        for field in self.__slots__[2:]:
+        self.mcu_tick_ms = None
+        for field in self.__slots__[3:]:
             setattr(self, field, None)
 
     def as_row(self):
@@ -152,11 +153,12 @@ class Parser:
         # MPPT line 1
         m = MPPT_LINE1.search(line)
         if m:
-            self.current.wiper      = int(m.group(1))
-            self.current.state      = int(m.group(2))
-            self.current.power_in_W = float(m.group(3))
-            self.current.v_in       = float(m.group(4))
-            self.current.i_in       = float(m.group(5))
+            self.current.mcu_tick_ms = int(m.group(1))
+            self.current.wiper      = int(m.group(2))
+            self.current.state      = int(m.group(3))
+            self.current.power_in_W = float(m.group(4))
+            self.current.v_in       = float(m.group(5))
+            self.current.i_in       = float(m.group(6))
             return None
 
         # MPPT line 2
@@ -209,9 +211,15 @@ class Parser:
 class LivePlotter:
     """Matplotlib-based live plotting with 4 subplots."""
 
+    # State colors: IDLE=gray, TRACKING=green, GLOBAL_SCAN=yellow, FAULT=red
+    STATE_COLORS = {0: "#cccccc", 1: "#c8e6c9", 2: "#fff9c4", 3: "#ffcdd2"}
+    STATE_NAMES  = {0: "IDLE", 1: "TRACKING", 2: "SCAN", 3: "FAULT"}
+
     def __init__(self, max_points=500):
         import matplotlib.pyplot as plt
+        from matplotlib.patches import Patch
         self.plt = plt
+        self.Patch = Patch
         self.max_points = max_points
 
         self.plt.ion()
@@ -227,9 +235,13 @@ class LivePlotter:
         self.i_in = []
         self.i_out = []
         self.wiper = []
+        self.state = []
         self.tc1 = []
         self.tc2 = []
         self.tc3 = []
+
+        # Track state band spans for efficient removal
+        self._state_spans = []
 
         # Subplot 0: Power + Wiper
         ax = self.axes[0, 0]
@@ -272,6 +284,40 @@ class LivePlotter:
         self.plt.show(block=False)
         self.plt.pause(0.01)
 
+    def _draw_state_bands(self):
+        """Draw colored background bands on the power subplot for MPPT state."""
+        # Remove old spans
+        for span in self._state_spans:
+            span.remove()
+        self._state_spans.clear()
+
+        if len(self.t) < 2:
+            return
+
+        ax = self.axes[0, 0]
+
+        # Walk through state changes and draw spans
+        start_idx = 0
+        for i in range(1, len(self.state)):
+            if self.state[i] != self.state[start_idx] or i == len(self.state) - 1:
+                end_idx = i if self.state[i] != self.state[start_idx] else i + 1
+                s = self.state[start_idx]
+                color = self.STATE_COLORS.get(s, "#cccccc")
+                span = ax.axvspan(self.t[start_idx], self.t[min(end_idx, len(self.t) - 1)],
+                                  alpha=0.3, color=color, zorder=0)
+                self._state_spans.append(span)
+                start_idx = i
+
+        # State legend on power subplot
+        legend_patches = [self.Patch(facecolor=c, alpha=0.3, label=self.STATE_NAMES[s])
+                          for s, c in self.STATE_COLORS.items() if s in set(self.state)]
+        if legend_patches:
+            lines_1, labels_1 = ax.get_legend_handles_labels()
+            lines_2, labels_2 = self.ax_wiper.get_legend_handles_labels()
+            ax.legend(lines_1 + lines_2 + legend_patches,
+                      labels_1 + labels_2 + [p.get_label() for p in legend_patches],
+                      loc="upper left", fontsize=7)
+
     def update(self, sample):
         """Push a new sample into the plot."""
         # Append data
@@ -282,6 +328,7 @@ class LivePlotter:
         self.i_in.append(sample.i_in or 0)
         self.i_out.append(sample.i_out or 0)
         self.wiper.append(sample.wiper or 0)
+        self.state.append(sample.state if sample.state is not None else 0)
         self.tc1.append(sample.tc1 if sample.tc1 is not None else float("nan"))
         self.tc2.append(sample.tc2 if sample.tc2 is not None else float("nan"))
         self.tc3.append(sample.tc3 if sample.tc3 is not None else float("nan"))
@@ -296,6 +343,7 @@ class LivePlotter:
             self.i_in = self.i_in[trim:]
             self.i_out = self.i_out[trim:]
             self.wiper = self.wiper[trim:]
+            self.state = self.state[trim:]
             self.tc1 = self.tc1[trim:]
             self.tc2 = self.tc2[trim:]
             self.tc3 = self.tc3[trim:]
@@ -310,6 +358,9 @@ class LivePlotter:
         self.line_tc1.set_data(self.t, self.tc1)
         self.line_tc2.set_data(self.t, self.tc2)
         self.line_tc3.set_data(self.t, self.tc3)
+
+        # Draw state background bands
+        self._draw_state_bands()
 
         # Rescale axes
         for ax in self.axes.flat:
