@@ -1,0 +1,10 @@
+../Core/Src/mppt.c:24:23:clamp_wiper	3
+../Core/Src/mppt.c:31:6:MPPT_Init	2
+../Core/Src/mppt.c:62:13:mppt_po_step	3
+../Core/Src/mppt.c:100:13:mppt_scan_step	3
+../Core/Src/mppt.c:133:13:mppt_start_scan	1
+../Core/Src/mppt.c:142:9:MPPT_Step	6
+../Core/Src/mppt.c:182:20:MPPT_GetData	1
+../Core/Src/mppt.c:186:6:MPPT_SetConfig	2
+../Core/Src/mppt.c:194:6:MPPT_ForceGlobalScan	2
+../Core/Src/mppt.c:200:6:MPPT_Fault	1

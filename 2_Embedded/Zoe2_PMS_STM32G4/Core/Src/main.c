@@ -27,6 +27,8 @@
 #include <ad5245.h>
 #include <ads1115.h>
 #include <max31855.h>
+#include <bms.h>
+#include <mppt.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -89,14 +91,11 @@ static void MX_USART3_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 // Allows for you to do printf statements
 int _write(int file, char *ptr, int len) {
     HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
     return len;
 }
-
-
 /* USER CODE END 0 */
 
 /**
@@ -157,7 +156,6 @@ int main(void)
   		.comp_que  = ADS1115_COMP_QUE_DISABLE,
   	};
 
-  	MAX31855_Data tc;
   	HAL_StatusTypeDef status;
 
   	/* ---- Enable CAN transceiver before starting FDCAN ---- */
@@ -182,6 +180,18 @@ int main(void)
   	fdcan2_txHeader.FDFormat            = FDCAN_CLASSIC_CAN;
   	fdcan2_txHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
   	fdcan2_txHeader.MessageMarker       = 0;
+
+  	/* ---- Initialize MPPT ---- */
+  	MPPT_Config_t mppt_cfg = {
+  	    .wiper_min     = 154,                    // your custom minimum
+  	    .wiper_max     = MPPT_WIPER_MAX,
+  	    .po_step       = MPPT_PO_STEP_DEFAULT,
+  	    .scan_step     = MPPT_SCAN_STEP_DEFAULT,
+  	    .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
+  	};
+  	MPPT_Init(&mppt_cfg);
+  	printf("MPPT initialized\r\n");
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -191,85 +201,125 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
-	HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
-	HAL_Delay(250);
 
-	status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 230);
-	printf("Write Status: %d\r\n", status);
-	HAL_Delay(2000);
+	  // Heartbeat
+	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
+	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
 
-	HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
-	HAL_Delay(250);
+	  // Set enable and switching pins high
+	  HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
 
-	int16_t raw;
-	float mv;
+//	  // Write to digital potentiometer
+//	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 255);
+//	  printf("Write Status: %d\r\n", status);
 
-	for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
-		/* Switch channel and trigger conversion */
-		cfg.mux = channels[ch];
-		status = ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw);
+	  // MPPT and ADC
+	  static uint32_t last_mppt = 0;
+	  if (HAL_GetTick() - last_mppt >= 200) {
+		  last_mppt = HAL_GetTick();
 
-		if (status == HAL_OK) {
-			mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
-			mv = (ch < 2) ? (mv * 50) / 0.0025 : (mv * 20); // Check channel ? Current calculation to A : Voltage calculation to V
-			(ch < 2) ? printf("%s: raw=%6d  %8.3f A\r\n", channel_names[ch], raw, mv) : printf("%s: raw=%6d  %8.3f V\r\n", channel_names[ch], raw, mv); // Print according to channel
-		} else if (status == HAL_TIMEOUT) {
-			printf("%s: TIMEOUT\r\n", channel_names[ch]);
-		} else {
-			printf("%s: I2C ERROR (0x%02X)\r\n", channel_names[ch], status);
-		}
-	}
+		  int16_t raw;
+		  float v_in = 0, i_in = 0, v_out = 0, i_out = 0;
 
-	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);	// Read from J_Temp3
-	if (status != HAL_OK) {
-		printf("SPI ERROR (0x%02X)\r\n", status);
-	} else if (tc.fault) {
-		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-	} else {
-		printf("TC3: %8.2f C  |  CJ3: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	}
+		  for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+			  cfg.mux = channels[ch];
+			  if (ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw) == HAL_OK) {
+				  float mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
+				  switch (ch) {
+					  case 0: i_in  = (mv / 1000.0f / 50.0f) / 0.0025f; break;
+					  case 1: i_out = (mv / 1000.0f / 50.0f) / 0.0025f; break;
+					  case 2: v_in  = mv / 1000.0f * 20.0f;              break;
+					  case 3: v_out = mv / 1000.0f * 20.0f;              break;
+				  }
+			  }
+		  }
 
-	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc);	// Read from J_Temp2
-	if (status != HAL_OK) {
-		printf("SPI ERROR (0x%02X)\r\n", status);
-	} else if (tc.fault) {
-		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-	} else {
-		printf("TC2: %8.2f C  |  CJ2: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	}
+		  uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
+		  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
+		  printf("Write Status: %d\r\n", status);
+	  }
 
-	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc);	// Read from J_Temp1
-	if (status != HAL_OK) {
-		printf("SPI ERROR (0x%02X)\r\n", status);
-	} else if (tc.fault) {
-		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-	} else {
-		printf("TC1: %8.2f C  |  CJ1: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	}
+	  // Thermocouple reads
+	  static uint32_t last_tc = 0;
+	  if (HAL_GetTick() - last_tc >= 1000) {
+		  last_tc = HAL_GetTick();
 
-	/* ---- Send FDCAN2 message ---- */
-	fdcan2_txData[0] = 0x01;
-	fdcan2_txData[1] = 0x02;
-	fdcan2_txData[2] = 0x03;
-	fdcan2_txData[3] = 0x04;
-	fdcan2_txData[4] = 0x05;
-	fdcan2_txData[5] = 0x06;
-	fdcan2_txData[6] = 0x07;
-	fdcan2_txData[7] = 0x08;
+		  MAX31855_Data tc;
+		  if (MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc) == HAL_OK && !tc.fault) {
+			  printf("TC3: %.2f C  |  CJ3: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+		  }
 
-	if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &fdcan2_txHeader, fdcan2_txData) != HAL_OK) {
-		printf("FDCAN2 TX failed\r\n");
-	} else {
-		printf("FDCAN2 TX OK (ID=0x%03lX)\r\n", fdcan2_txHeader.Identifier);
-	}
+		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc) == HAL_OK && !tc.fault) {
+			  printf("TC2: %.2f C  |  CJ2: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+		  }
 
-	printf("----\r\n");
-	HAL_Delay(500);
+		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc) == HAL_OK && !tc.fault) {
+			  printf("TC1: %.2f C  |  CJ1: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
+		  }
+	  }
+
+	  // Debug Print
+	  static uint32_t last_print = 0;
+	  if (HAL_GetTick() - last_print >= 1000) {
+	          last_print = HAL_GetTick();
+
+	          const MPPT_Data_t *mppt = MPPT_GetData();
+	          printf("MPPT: wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
+	                 mppt->wiper, mppt->state,
+	                 mppt->power_W, mppt->in_voltage_V, mppt->in_current_A);
+	          printf("      Vout=%.2fV  Iout=%.3fA\r\n",
+	                 mppt->out_voltage_V, mppt->out_current_A);
+	          printf("----\r\n");
+	  }
+
+//	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);	// Read from J_Temp3
+//	if (status != HAL_OK) {
+//		printf("SPI ERROR (0x%02X)\r\n", status);
+//	} else if (tc.fault) {
+//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+//	} else {
+//		printf("TC3: %8.2f C  |  CJ3: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+//	}
+//
+//	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc);	// Read from J_Temp2
+//	if (status != HAL_OK) {
+//		printf("SPI ERROR (0x%02X)\r\n", status);
+//	} else if (tc.fault) {
+//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+//	} else {
+//		printf("TC2: %8.2f C  |  CJ2: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+//	}
+//
+//	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc);	// Read from J_Temp1
+//	if (status != HAL_OK) {
+//		printf("SPI ERROR (0x%02X)\r\n", status);
+//	} else if (tc.fault) {
+//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
+//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
+//	} else {
+//		printf("TC1: %8.2f C  |  CJ1: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
+//	}
+
+//	/* ---- Send FDCAN2 message ---- */
+//	fdcan2_txData[0] = 0x01;
+//	fdcan2_txData[1] = 0x02;
+//	fdcan2_txData[2] = 0x03;
+//	fdcan2_txData[3] = 0x04;
+//	fdcan2_txData[4] = 0x05;
+//	fdcan2_txData[5] = 0x06;
+//	fdcan2_txData[6] = 0x07;
+//	fdcan2_txData[7] = 0x08;
+
+//	if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &fdcan2_txHeader, fdcan2_txData) != HAL_OK) {
+//		printf("FDCAN2 TX failed\r\n");
+//	} else {
+//		printf("FDCAN2 TX OK (ID=0x%03lX)\r\n", fdcan2_txHeader.Identifier);
+//	}
+
+
   }
   /* USER CODE END 3 */
 }

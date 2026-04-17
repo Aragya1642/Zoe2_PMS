@@ -1,0 +1,8 @@
+../Core/Src/bms.c:31:24:be16	1
+../Core/Src/bms.c:40:24:be32	1
+../Core/Src/bms.c:46:19:BMS_Init	3
+../Core/Src/bms.c:109:19:BMS_SendQuery	2
+../Core/Src/bms.c:128:13:BMS_ParseFrame	20
+../Core/Src/bms.c:273:6:BMS_RxCallback	4
+../Core/Src/bms.c:294:19:BMS_GetData	1
+../Core/Src/bms.c:298:6:BMS_IsTimedOut	2

@@ -1,0 +1,8 @@
+../Core/Src/bms.c:31:24:be16	16	static
+../Core/Src/bms.c:40:24:be32	16	static
+../Core/Src/bms.c:46:19:BMS_Init	56	static
+../Core/Src/bms.c:109:19:BMS_SendQuery	8	static
+../Core/Src/bms.c:128:13:BMS_ParseFrame	40	static
+../Core/Src/bms.c:273:6:BMS_RxCallback	64	static
+../Core/Src/bms.c:294:19:BMS_GetData	4	static
+../Core/Src/bms.c:298:6:BMS_IsTimedOut	8	static

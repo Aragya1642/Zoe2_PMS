@@ -7,8 +7,10 @@
 C_SRCS += \
 ../Core/Src/ad5245.c \
 ../Core/Src/ads1115.c \
+../Core/Src/bms.c \
 ../Core/Src/main.c \
 ../Core/Src/max31855.c \
+../Core/Src/mppt.c \
 ../Core/Src/stm32g4xx_hal_msp.c \
 ../Core/Src/stm32g4xx_it.c \
 ../Core/Src/syscalls.c \
@@ -18,8 +20,10 @@ C_SRCS += \
 OBJS += \
 ./Core/Src/ad5245.o \
 ./Core/Src/ads1115.o \
+./Core/Src/bms.o \
 ./Core/Src/main.o \
 ./Core/Src/max31855.o \
+./Core/Src/mppt.o \
 ./Core/Src/stm32g4xx_hal_msp.o \
 ./Core/Src/stm32g4xx_it.o \
 ./Core/Src/syscalls.o \
@@ -29,8 +33,10 @@ OBJS += \
 C_DEPS += \
 ./Core/Src/ad5245.d \
 ./Core/Src/ads1115.d \
+./Core/Src/bms.d \
 ./Core/Src/main.d \
 ./Core/Src/max31855.d \
+./Core/Src/mppt.d \
 ./Core/Src/stm32g4xx_hal_msp.d \
 ./Core/Src/stm32g4xx_it.d \
 ./Core/Src/syscalls.d \
@@ -45,7 +51,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/ad5245.cyclo ./Core/Src/ad5245.d ./Core/Src/ad5245.o ./Core/Src/ad5245.su ./Core/Src/ads1115.cyclo ./Core/Src/ads1115.d ./Core/Src/ads1115.o ./Core/Src/ads1115.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/max31855.cyclo ./Core/Src/max31855.d ./Core/Src/max31855.o ./Core/Src/max31855.su ./Core/Src/stm32g4xx_hal_msp.cyclo ./Core/Src/stm32g4xx_hal_msp.d ./Core/Src/stm32g4xx_hal_msp.o ./Core/Src/stm32g4xx_hal_msp.su ./Core/Src/stm32g4xx_it.cyclo ./Core/Src/stm32g4xx_it.d ./Core/Src/stm32g4xx_it.o ./Core/Src/stm32g4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32g4xx.cyclo ./Core/Src/system_stm32g4xx.d ./Core/Src/system_stm32g4xx.o ./Core/Src/system_stm32g4xx.su
+	-$(RM) ./Core/Src/ad5245.cyclo ./Core/Src/ad5245.d ./Core/Src/ad5245.o ./Core/Src/ad5245.su ./Core/Src/ads1115.cyclo ./Core/Src/ads1115.d ./Core/Src/ads1115.o ./Core/Src/ads1115.su ./Core/Src/bms.cyclo ./Core/Src/bms.d ./Core/Src/bms.o ./Core/Src/bms.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/max31855.cyclo ./Core/Src/max31855.d ./Core/Src/max31855.o ./Core/Src/max31855.su ./Core/Src/mppt.cyclo ./Core/Src/mppt.d ./Core/Src/mppt.o ./Core/Src/mppt.su ./Core/Src/stm32g4xx_hal_msp.cyclo ./Core/Src/stm32g4xx_hal_msp.d ./Core/Src/stm32g4xx_hal_msp.o ./Core/Src/stm32g4xx_hal_msp.su ./Core/Src/stm32g4xx_it.cyclo ./Core/Src/stm32g4xx_it.d ./Core/Src/stm32g4xx_it.o ./Core/Src/stm32g4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32g4xx.cyclo ./Core/Src/system_stm32g4xx.d ./Core/Src/system_stm32g4xx.o ./Core/Src/system_stm32g4xx.su
 
 .PHONY: clean-Core-2f-Src
 
