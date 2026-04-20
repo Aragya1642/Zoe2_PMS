@@ -216,13 +216,9 @@ int main(void)
 //	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 255);
 //	  printf("Write Status: %d\r\n", status);
 
-	  // Heartbeat
-	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
-	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
-
 	  // MPPT + ADC + Print (every 50 ms)
 	  static uint32_t last_mppt = 0;
-	  if (HAL_GetTick() - last_mppt >= 50) {
+	  if (HAL_GetTick() - last_mppt >= 200) {
 		  last_mppt = HAL_GetTick();
 
 		  int16_t raw;
@@ -242,11 +238,11 @@ int main(void)
 		  }
 
 		  uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
-		  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
+		  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 230);
 
 		  const MPPT_Data_t *mppt = MPPT_GetData();
 		  printf("MPPT: tick=%lu  wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
-				 HAL_GetTick(), mppt->wiper, mppt->state,
+				 HAL_GetTick(), 230, mppt->state,
 				 mppt->power_W, mppt->in_voltage_V, mppt->in_current_A);
 		  printf("      Vout=%.2fV  Iout=%.3f A\r\n",
 				 mppt->out_voltage_V, mppt->out_current_A);
