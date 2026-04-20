@@ -29,6 +29,8 @@
 #include <max31855.h>
 #include <bms.h>
 #include <mppt.h>
+#include <ssd1306.h>
+#include <ssd1306_fonts.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -191,6 +193,15 @@ int main(void)
   	};
   	MPPT_Init(&mppt_cfg);
   	printf("MPPT initialized\r\n");
+
+  	/* ---- Initialize OLED ---- */
+  	ssd1306_Init();
+  	ssd1306_Fill(Black);
+	ssd1306_SetCursor(10, 24);
+	ssd1306_WriteString("Booting...", Font_11x18, White);
+	ssd1306_UpdateScreen();
+	HAL_Delay(500);
+	printf("OLED initialized\r\n");
 
   /* USER CODE END 2 */
 
