@@ -183,7 +183,7 @@ int main(void)
 
   	/* ---- Initialize MPPT ---- */
   	MPPT_Config_t mppt_cfg = {
-  	    .wiper_min     = 154,                    // your custom minimum
+  	    .wiper_min     = 179,                    // your custom minimum
   	    .wiper_max     = 255,
   	    .po_step       = 1,
   	    .scan_step     = 5,

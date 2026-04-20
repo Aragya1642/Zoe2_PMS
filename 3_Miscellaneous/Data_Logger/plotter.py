@@ -5,13 +5,11 @@ Zoë2 Power Board CSV Plotter
 Reads a CSV log file produced by datalogger.py and generates plots.
 
 Usage:
-    python plotter.py logs/zoe2_log_20260416_142305.csv
-    python plotter.py logs/zoe2_log_20260416_142305.csv --save       # save as PNG instead of showing
-    python plotter.py logs/zoe2_log_20260416_142305.csv --save --dpi 200
-    python plotter.py logs/file.csv --tstart 10 --tend 14.5
-    python plotter.py logs/file.csv --tstart 13.5              # everything from 13.5s onward
-    python plotter.py logs/file.csv --tend 20                   # first 20s only
-    python plotter.py logs/file.csv --tstart 13 --tend 15 --save --title "Global Scan #2"
+    python plotter.py logs/zoe2_log.csv
+    python plotter.py logs/zoe2_log.csv --save                # combined 4-panel PNG
+    python plotter.py logs/zoe2_log.csv --save-each           # each panel as separate PNG
+    python plotter.py logs/zoe2_log.csv --save --save-each    # both
+    python plotter.py logs/zoe2_log.csv --tstart 10 --tend 30
 
 Dependencies:
     pip install matplotlib pandas
@@ -45,28 +43,46 @@ def load_csv(path):
         print(f"ERROR: Missing columns: {missing}")
         sys.exit(1)
 
-    # Parse timestamp if present
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
     return df
 
 
-def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
-    """Generate 4-panel plot from datalogger CSV data."""
+# ─────────────────────────────────────────────────────────────────────
+# State band helper
+# ─────────────────────────────────────────────────────────────────────
+
+STATE_COLORS = {0: "#cccccc", 1: "#c8e6c9", 2: "#fff9c4", 3: "#ffcdd2"}
+STATE_NAMES  = {0: "IDLE", 1: "TRACKING", 2: "SCAN", 3: "FAULT"}
+
+
+def draw_state_bands(ax, df):
+    """Draw colored background bands for MPPT state changes."""
+    if "state" not in df.columns or df["state"].isna().all():
+        return False
+    states = df["state"].fillna(0).astype(int).values
+    times = df["elapsed_s"].values
+    start_idx = 0
+    for i in range(1, len(states)):
+        if states[i] != states[start_idx] or i == len(states) - 1:
+            end_idx = i if states[i] != states[start_idx] else i + 1
+            s = int(states[start_idx])
+            ax.axvspan(times[start_idx], times[min(end_idx, len(times) - 1)],
+                       alpha=0.3, color=STATE_COLORS.get(s, "#ccc"), zorder=0)
+            start_idx = i
+    return True
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Individual panel functions
+# ─────────────────────────────────────────────────────────────────────
+
+def plot_power_wiper(ax, df):
+    """Panel: Input Power & Wiper Position."""
     from matplotlib.patches import Patch
 
     t = df["elapsed_s"]
-
-    # State coloring
-    STATE_COLORS = {0: "#cccccc", 1: "#c8e6c9", 2: "#fff9c4", 3: "#ffcdd2"}
-    STATE_NAMES  = {0: "IDLE", 1: "TRACKING", 2: "SCAN", 3: "FAULT"}
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
-    fig.suptitle(title, fontsize=14, fontweight="bold")
-
-    # ── Panel 0: Power + Wiper ────────────────────────────────────────
-    ax = axes[0, 0]
     ax.set_title("Input Power & Wiper Position")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Power (W)", color="tab:blue")
@@ -78,22 +94,8 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
     ax2.plot(t, df["wiper"], color="tab:orange", linewidth=1, alpha=0.8, label="Wiper")
     ax2.tick_params(axis="y", labelcolor="tab:orange")
 
-    # State background bands
-    has_state = "state" in df.columns and df["state"].notna().any()
-    if has_state:
-        states = df["state"].fillna(0).astype(int).values
-        times = t.values
-        start_idx = 0
-        for i in range(1, len(states)):
-            if states[i] != states[start_idx] or i == len(states) - 1:
-                end_idx = i if states[i] != states[start_idx] else i + 1
-                s = int(states[start_idx])
-                color = STATE_COLORS.get(s, "#cccccc")
-                ax.axvspan(times[start_idx], times[min(end_idx, len(times) - 1)],
-                           alpha=0.3, color=color, zorder=0)
-                start_idx = i
+    has_state = draw_state_bands(ax, df)
 
-    # Combined legend with state patches
     lines_1, labels_1 = ax.get_legend_handles_labels()
     lines_2, labels_2 = ax2.get_legend_handles_labels()
     legend_items = lines_1 + lines_2
@@ -106,8 +108,10 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
                 legend_labels.append(STATE_NAMES[s])
     ax.legend(legend_items, legend_labels, loc="upper left", fontsize=7)
 
-    # ── Panel 1: Voltages ─────────────────────────────────────────────
-    ax = axes[0, 1]
+
+def plot_voltages(ax, df):
+    """Panel: Voltages."""
+    t = df["elapsed_s"]
     ax.set_title("Voltages")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Voltage (V)")
@@ -116,8 +120,10 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # ── Panel 2: Currents ─────────────────────────────────────────────
-    ax = axes[1, 0]
+
+def plot_currents(ax, df):
+    """Panel: Currents."""
+    t = df["elapsed_s"]
     ax.set_title("Currents")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Current (A)")
@@ -126,8 +132,10 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # ── Panel 3: Temperatures ─────────────────────────────────────────
-    ax = axes[1, 1]
+
+def plot_temperatures(ax, df):
+    """Panel: Thermocouple Temperatures."""
+    t = df["elapsed_s"]
     ax.set_title("Thermocouple Temperatures")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Temperature (°C)")
@@ -147,9 +155,32 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
         ax.text(0.5, 0.5, "No thermocouple data", transform=ax.transAxes,
                 ha="center", va="center", fontsize=12, color="gray")
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Combined and individual plot drivers
+# ─────────────────────────────────────────────────────────────────────
+
+PANELS = [
+    ("power_wiper",  plot_power_wiper),
+    ("voltages",     plot_voltages),
+    ("currents",     plot_currents),
+    ("temperatures", plot_temperatures),
+]
+
+
+def plot_combined(df, title="Zoë2 Power Board", save_path=None, dpi=150):
+    """Generate combined 4-panel plot."""
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+
+    plot_power_wiper(axes[0, 0], df)
+    plot_voltages(axes[0, 1], df)
+    plot_currents(axes[1, 0], df)
+    plot_temperatures(axes[1, 1], df)
+
     fig.tight_layout(rect=[0, 0, 1, 0.95], h_pad=3, w_pad=3)
 
-    # ── Stats annotation ──────────────────────────────────────────────
+    t = df["elapsed_s"]
     duration = t.iloc[-1] - t.iloc[0] if len(t) > 1 else 0
     stats = (f"Samples: {len(df)}  |  Duration: {duration:.1f}s  |  "
              f"Avg Power: {df['power_in_W'].mean():.2f}W  |  "
@@ -158,18 +189,39 @@ def plot(df, title="Zoë2 Power Board", save_path=None, dpi=150):
 
     if save_path:
         fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
-        print(f"Saved plot to {save_path}")
+        print(f"Saved combined plot to {save_path}")
     else:
         plt.show()
+
+
+def save_individual(df, csv_path, title_prefix="Zoë2", dpi=150):
+    """Save each panel as its own PNG file."""
+    out_dir = csv_path.parent / (csv_path.stem + "_panels")
+    out_dir.mkdir(exist_ok=True)
+
+    for name, plot_fn in PANELS:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        fig.suptitle(f"{title_prefix} — {name.replace('_', ' ').title()}",
+                     fontsize=13, fontweight="bold")
+        plot_fn(ax, df)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        out_path = out_dir / f"{name}.png"
+        fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Saved {out_path}")
+
+    print(f"Individual panels saved to {out_dir}/")
 
 
 def main():
     ap = argparse.ArgumentParser(description="Plot Zoë2 datalogger CSV files")
     ap.add_argument("csvfile", type=str, help="Path to CSV log file")
     ap.add_argument("--save", action="store_true",
-                    help="Save as PNG instead of showing interactively")
+                    help="Save combined 4-panel PNG")
+    ap.add_argument("--save-each", action="store_true",
+                    help="Save each panel as a separate PNG")
     ap.add_argument("--dpi", type=int, default=150,
-                    help="DPI for saved image (default: 150)")
+                    help="DPI for saved images (default: 150)")
     ap.add_argument("--title", type=str, default=None,
                     help="Custom plot title")
     ap.add_argument("--tstart", type=float, default=None,
@@ -187,7 +239,6 @@ def main():
     df = load_csv(csv_path)
     print(f"  {len(df)} samples loaded")
 
-    # Time window filtering
     if args.tstart is not None:
         df = df[df["elapsed_s"] >= args.tstart]
     if args.tend is not None:
@@ -200,9 +251,16 @@ def main():
         sys.exit(1)
 
     title = args.title or f"Zoë2 Power Board — {csv_path.stem}"
-    save_path = csv_path.with_suffix(".png") if args.save else None
 
-    plot(df, title=title, save_path=save_path, dpi=args.dpi)
+    if args.save_each:
+        save_individual(df, csv_path, title_prefix=title, dpi=args.dpi)
+
+    if args.save:
+        save_path = csv_path.with_suffix(".png")
+        plot_combined(df, title=title, save_path=save_path, dpi=args.dpi)
+    elif not args.save_each:
+        # neither --save nor --save-each: show interactively
+        plot_combined(df, title=title, save_path=None, dpi=args.dpi)
 
 
 if __name__ == "__main__":
