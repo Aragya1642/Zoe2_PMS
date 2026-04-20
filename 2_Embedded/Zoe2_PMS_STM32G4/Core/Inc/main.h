@@ -69,8 +69,12 @@ void Error_Handler(void);
 #define THERMO_CS3_GPIO_Port GPIOD
 #define SWEN_Master_Pin GPIO_PIN_4
 #define SWEN_Master_GPIO_Port GPIOD
+#define SWEN_Slave_Pin GPIO_PIN_5
+#define SWEN_Slave_GPIO_Port GPIOD
 #define SD_Master_Pin GPIO_PIN_6
 #define SD_Master_GPIO_Port GPIOD
+#define SD_Slave_Pin GPIO_PIN_7
+#define SD_Slave_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 
