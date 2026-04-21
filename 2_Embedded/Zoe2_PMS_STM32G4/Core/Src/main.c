@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <math.h>
 #include <ad5245.h>
 #include <ads1115.h>
@@ -40,7 +41,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+/* Set to 1 to enable I2C bus scan at boot (adds ~400 ms delay) */
+#define DEBUG_I2C_SCAN    0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,14 +70,18 @@ static const uint16_t channels[] = {
     ADS1115_MUX_SINGLE_3,
 };
 
-static const char *channel_names[] = {
-    "Input Current (AIN0)", "Output Current (AIN1)", "Input Voltage (AIN2)", "Output Voltage (AIN3)",
-};
-
 #define NUM_CHANNELS  (sizeof(channels) / sizeof(channels[0]))
 
-static FDCAN_TxHeaderTypeDef fdcan2_txHeader;
-static uint8_t fdcan2_txData[8];
+/* ADS1115 runtime config (mux updated per-channel in read_adc) */
+static ADS1115_Config cfg;
+
+/* Latest thermocouple readings, cached for OLED and future safety module.
+ * Each TC has a value and a "last good" timestamp (HAL tick ms).
+ * Readings older than TC_STALE_MS are considered stale.
+ * Initial ts=0 means "never read" — treated as stale. */
+#define TC_STALE_MS   3000u   /* 3x the 1000 ms read period */
+static float    g_tc_C[3]     = { 0.0f, 0.0f, 0.0f };
+static uint32_t g_tc_last[3]  = { 0, 0, 0 };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,7 +94,13 @@ static void MX_SPI1_Init(void);
 static void MX_USB_PCD_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void read_adc(float *v_in, float *i_in, float *v_out, float *i_out);
+static void read_thermocouples(void);
+static void print_telemetry(const MPPT_Data_t *m);
+static void update_oled(const MPPT_Data_t *m);
+static void boost_master_enable(bool on);
+static void boost_slave_enable(bool on);
+static void boost_disable_all(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -97,6 +109,205 @@ static void MX_USART3_UART_Init(void);
 int _write(int file, char *ptr, int len) {
     HAL_UART_Transmit(&huart3, (uint8_t *)ptr, len, HAL_MAX_DELAY);
     return len;
+}
+
+/**
+ * @brief Read all four ADS1115 channels and convert to engineering units.
+ *
+ * Channel mapping:
+ *   AIN0 -> input current  (50x gain, 2.5 mOhm shunt)
+ *   AIN1 -> output current (50x gain, 2.5 mOhm shunt)
+ *   AIN2 -> input voltage  (1:20 divider)
+ *   AIN3 -> output voltage (1:20 divider)
+ *
+ * On I2C error the corresponding output is left at 0.
+ */
+static void read_adc(float *v_in, float *i_in, float *v_out, float *i_out)
+{
+    int16_t raw;
+    *v_in = *i_in = *v_out = *i_out = 0.0f;
+
+    for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
+        cfg.mux = channels[ch];
+        if (ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw) == HAL_OK) {
+            float mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
+            switch (ch) {
+                case 0: *i_in  = (mv / 1000.0f / 50.0f) / 0.0025f; break;
+                case 1: *i_out = (mv / 1000.0f / 50.0f) / 0.0025f; break;
+                case 2: *v_in  = mv / 1000.0f * 20.0f;             break;
+                case 3: *v_out = mv / 1000.0f * 20.0f;             break;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Read all three MAX31855 thermocouples and update the cache.
+ *
+ * Wiring note (historical): CS1 drives J_Temp3, CS2 drives J_Temp2,
+ * CS3 drives J_Temp1. This helper presents them as TC1/TC2/TC3 in
+ * the cache to match physical labels.
+ *
+ * On success, the reading and HAL tick are written to g_tc_C[] and
+ * g_tc_last[]. On SPI error or sensor fault the entry is left alone
+ * — update_oled() will age out via TC_STALE_MS and display "---".
+ */
+static void read_thermocouples(void)
+{
+    /* Mapping: cache index -> (GPIO port, pin) */
+    static const struct {
+        GPIO_TypeDef *port;
+        uint16_t      pin;
+    } tc_cs[3] = {
+        { GPIOD,                 THERMO_CS3_Pin },   /* TC1 */
+        { GPIOD,                 THERMO_CS2_Pin },   /* TC2 */
+        { THERMO_CS1_GPIO_Port,  THERMO_CS1_Pin },   /* TC3 */
+    };
+
+    uint32_t now = HAL_GetTick();
+    MAX31855_Data tc;
+
+    for (uint8_t i = 0; i < 3; i++) {
+        if (MAX31855_Read(&hspi1, tc_cs[i].port, tc_cs[i].pin, &tc) == HAL_OK
+            && !tc.fault) {
+            g_tc_C[i]    = tc.tc_temp;
+            g_tc_last[i] = now;
+            printf("TC%u: %.2f C  |  CJ%u: %.2f C\r\n",
+                   i + 1, tc.tc_temp, i + 1, tc.cj_temp);
+        } else {
+            printf("TC%u: read failed or faulted\r\n", i + 1);
+        }
+    }
+}
+
+/**
+ * @brief Print one MPPT telemetry record to the debug UART.
+ */
+static void print_telemetry(const MPPT_Data_t *m)
+{
+    printf("MPPT: tick=%lu  wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
+           HAL_GetTick(), m->wiper, m->state,
+           m->power_W, m->in_voltage_V, m->in_current_A);
+    printf("      Vout=%.2fV  Iout=%.3f A\r\n",
+           m->out_voltage_V, m->out_current_A);
+    printf("----\r\n");
+}
+
+/**
+ * @brief Render telemetry to a dual-color SSD1306 OLED.
+ *
+ * Display physically has yellow pixels on rows 0-15 and white/blue
+ * pixels on rows 16-63. Layout exploits this split:
+ *
+ *   YELLOW BAND (y=0..15):
+ *     y=3    "PMS         TRACK"  Font_7x10 (18 chars, 10px tall)
+ *
+ *   WHITE AREA (y=16..63):
+ *     y=18   "Pin  : 39.3 W"
+ *     y=27   "Pout : 29.0 W"
+ *     y=36   "Eff  :  78 %"
+ *     y=45   "TC1:45 TC2:42 TC3:68"
+ *     y=54   "W:230"
+ *
+ * Frame push takes ~20-25 ms @ 400 kHz I2C. Call no faster than 500 ms.
+ */
+static void update_oled(const MPPT_Data_t *m)
+{
+    static const char *state_names[] = { "IDLE", "TRACK", "SCAN", "FAULT" };
+    char buf[24];
+
+    ssd1306_Fill(Black);
+
+    /* ── YELLOW BAND: project + state ───────────────────────────── */
+    const char *sname = (m->state <= 3) ? state_names[m->state] : "???";
+    /* Font_7x10 is 7px wide → 18 chars fit in 128px width.
+     * Pad so state lands right-justified in the yellow strip. */
+    snprintf(buf, sizeof(buf), "PMS%*s", 15 - (int)strlen(sname), sname);
+    ssd1306_SetCursor(0, 3);
+    ssd1306_WriteString(buf, Font_7x10, White);
+
+    /* ── WHITE AREA: power, efficiency, temperatures ────────────── */
+
+    /* Input power */
+    snprintf(buf, sizeof(buf), "Pin  : %5.1f W", m->power_W);
+    ssd1306_SetCursor(0, 18);
+    ssd1306_WriteString(buf, Font_6x8, White);
+
+    /* Output power */
+    float p_out = m->out_voltage_V * m->out_current_A;
+    snprintf(buf, sizeof(buf), "Pout : %5.1f W", p_out);
+    ssd1306_SetCursor(0, 27);
+    ssd1306_WriteString(buf, Font_6x8, White);
+
+    /* Efficiency */
+    int eff = 0;
+    if (m->power_W > 0.5f) {
+        float e = 100.0f * p_out / m->power_W;
+        if (e < 0.0f)   e = 0.0f;
+        if (e > 150.0f) e = 150.0f;
+        eff = (int)e;
+    }
+    snprintf(buf, sizeof(buf), "Eff  :  %3d %%", eff);
+    ssd1306_SetCursor(0, 36);
+    ssd1306_WriteString(buf, Font_6x8, White);
+
+    /* Three thermocouples — show "---" if reading is stale or never taken */
+    uint32_t now = HAL_GetTick();
+    char tc_s[3][4];  /* "-45" or "---" */
+    for (uint8_t i = 0; i < 3; i++) {
+        bool never = (g_tc_last[i] == 0);
+        bool stale = (!never) && (now - g_tc_last[i] > TC_STALE_MS);
+        if (never || stale) {
+            snprintf(tc_s[i], sizeof(tc_s[i]), "---");
+        } else {
+            snprintf(tc_s[i], sizeof(tc_s[i]), "%3d", (int)g_tc_C[i]);
+        }
+    }
+    snprintf(buf, sizeof(buf), "T1:%s T2:%s T3:%s",
+             tc_s[0], tc_s[1], tc_s[2]);
+    ssd1306_SetCursor(0, 45);
+    ssd1306_WriteString(buf, Font_6x8, White);
+
+    /* Wiper bottom line */
+    snprintf(buf, sizeof(buf), "W:%3u", m->wiper);
+    ssd1306_SetCursor(0, 54);
+    ssd1306_WriteString(buf, Font_6x8, White);
+
+    ssd1306_UpdateScreen();
+}
+
+/**
+ * @brief Enable or disable the master boost converter stage.
+ *
+ * SD_Master  HIGH = enabled (device active)
+ * SWEN_Master HIGH = switching enabled
+ *
+ * Both must be HIGH for the stage to deliver power.
+ */
+static void boost_master_enable(bool on)
+{
+    GPIO_PinState state = on ? GPIO_PIN_SET : GPIO_PIN_RESET;
+    HAL_GPIO_WritePin(GPIOD, SD_Master_Pin,   state);
+    HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, state);
+}
+
+/**
+ * @brief Enable or disable the slave boost converter stage.
+ */
+static void boost_slave_enable(bool on)
+{
+    GPIO_PinState state = on ? GPIO_PIN_SET : GPIO_PIN_RESET;
+    HAL_GPIO_WritePin(GPIOD, SD_Slave_Pin,   state);
+    HAL_GPIO_WritePin(GPIOD, SWEN_Slave_Pin, state);
+}
+
+/**
+ * @brief Force both boost stages off. Safe default and fault response.
+ */
+static void boost_disable_all(void)
+{
+    boost_master_enable(false);
+    boost_slave_enable(false);
 }
 /* USER CODE END 0 */
 
@@ -138,6 +349,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   printf("alive\r\n");
 
+#if DEBUG_I2C_SCAN
   printf("Scanning I2C2...\r\n");
   for (uint8_t addr = 0x08; addr < 0x78; addr++) {
       if (HAL_I2C_IsDeviceReady(&hi2c2, (addr << 1), 3, 10) == HAL_OK) {
@@ -145,63 +357,61 @@ int main(void)
       }
   }
   printf("Done.\r\n");
+#endif
 
-  /* ---- ADS1115 Configuration ---- */
-  	ADS1115_Config cfg = {
-  		.mux       = ADS1115_MUX_SINGLE_0,
-  		.pga       = ADS1115_PGA_4_096V,
-  		.mode      = ADS1115_MODE_SINGLE,
-  		.dr        = ADS1115_DR_128SPS,
-  		.comp_mode = ADS1115_COMP_MODE_TRAD,
-  		.comp_pol  = ADS1115_COMP_POL_LOW,
-  		.comp_lat  = ADS1115_COMP_LAT_OFF,
-  		.comp_que  = ADS1115_COMP_QUE_DISABLE,
-  	};
+  /* ---- ADS1115 configuration ---- */
+  cfg.mux       = ADS1115_MUX_SINGLE_0;
+  cfg.pga       = ADS1115_PGA_4_096V;
+  cfg.mode      = ADS1115_MODE_SINGLE;
+  cfg.dr        = ADS1115_DR_128SPS;
+  cfg.comp_mode = ADS1115_COMP_MODE_TRAD;
+  cfg.comp_pol  = ADS1115_COMP_POL_LOW;
+  cfg.comp_lat  = ADS1115_COMP_LAT_OFF;
+  cfg.comp_que  = ADS1115_COMP_QUE_DISABLE;
 
-  	HAL_StatusTypeDef status;
+  /* ---- Boost converters start in OFF state ----
+  * Explicit safe default: both master and slave disabled at boot.
+  * A later enable happens once MPPT is initialized and the first
+  * ADC reading confirms the input is in a reasonable range. For
+  * now we bring master up immediately after init to preserve
+  * existing behavior; safety module will gate this later.
+  */
+  boost_disable_all();
+  HAL_Delay(10);
 
-  	/* ---- Enable CAN transceiver before starting FDCAN ---- */
-  	HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
-  	HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
-  	HAL_Delay(10);
+  /* ---- Start FDCAN2 (non-fatal for debugging) ---- */
+  if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK) {
+	  printf("FDCAN2 start FAILED\r\n");
+  } else {
+	  printf("FDCAN2 started OK\r\n");
+  }
 
-  	/* ---- Start FDCAN2 (non-fatal for debugging) ---- */
-  	if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK) {
-  		printf("FDCAN2 start FAILED\r\n");
-  	} else {
-  		printf("FDCAN2 started OK\r\n");
-  	}
+  /* ---- Initialize MPPT ---- */
+  MPPT_Config_t mppt_cfg = {
+		  .wiper_min     = 179,                    // your custom minimum
+		  .wiper_max     = 255,
+		  .po_step       = 1,
+		  .scan_step     = 5,
+		  .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
+  };
+  MPPT_Init(&mppt_cfg);
+  printf("MPPT initialized\r\n");
 
-  	/* ---- Prepare FDCAN2 TX header (reused each send) ---- */
-  	fdcan2_txHeader.Identifier          = 0x123;
-  	fdcan2_txHeader.IdType              = FDCAN_STANDARD_ID;
-  	fdcan2_txHeader.TxFrameType         = FDCAN_DATA_FRAME;
-  	fdcan2_txHeader.DataLength          = FDCAN_DLC_BYTES_8;
-  	fdcan2_txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  	fdcan2_txHeader.BitRateSwitch       = FDCAN_BRS_OFF;
-  	fdcan2_txHeader.FDFormat            = FDCAN_CLASSIC_CAN;
-  	fdcan2_txHeader.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
-  	fdcan2_txHeader.MessageMarker       = 0;
+  /* ---- Initialize OLED ---- */
+  ssd1306_Init();
+  ssd1306_Fill(Black);
+  ssd1306_SetCursor(10, 24);
+  ssd1306_WriteString("Booting...", Font_11x18, White);
+  ssd1306_UpdateScreen();
+  HAL_Delay(500);
+  printf("OLED initialized\r\n");
 
-  	/* ---- Initialize MPPT ---- */
-  	MPPT_Config_t mppt_cfg = {
-  	    .wiper_min     = 179,                    // your custom minimum
-  	    .wiper_max     = 255,
-  	    .po_step       = 1,
-  	    .scan_step     = 5,
-  	    .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
-  	};
-  	MPPT_Init(&mppt_cfg);
-  	printf("MPPT initialized\r\n");
-
-  	/* ---- Initialize OLED ---- */
-  	ssd1306_Init();
-  	ssd1306_Fill(Black);
-	ssd1306_SetCursor(10, 24);
-	ssd1306_WriteString("Booting...", Font_11x18, White);
-	ssd1306_UpdateScreen();
-	HAL_Delay(500);
-	printf("OLED initialized\r\n");
+  /* ---- All subsystems ready — enable master boost stage ----
+   * Slave stays off until paralleling is needed. Safety module
+   * (TBD) will own enable/disable from this point forward.
+   */
+  boost_master_enable(true);
+  printf("Boost master enabled\r\n");
 
   /* USER CODE END 2 */
 
@@ -212,126 +422,40 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+      /* ── Heartbeat LEDs ───────────────────────────────────────── */
+      HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
+      HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
 
-	  // Heartbeat
-	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
-	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
+      /* ── MPPT + ADC + telemetry (every 50 ms) ─────────────────── */
+      static uint32_t last_mppt = 0;
+      if (HAL_GetTick() - last_mppt >= 50) {
+          last_mppt = HAL_GetTick();
 
-	  // Set enable and switching pins high
-	  HAL_GPIO_WritePin(GPIOD, SD_Master_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOD, SWEN_Master_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOD, SWEN_Slave_Pin, GPIO_PIN_RESET);
-	  HAL_GPIO_WritePin(GPIOD, SD_Slave_Pin, GPIO_PIN_RESET);
+          float v_in, i_in, v_out, i_out;
+          read_adc(&v_in, &i_in, &v_out, &i_out);
 
-//	  // Write to digital potentiometer
-//	  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, 255);
-//	  printf("Write Status: %d\r\n", status);
+          uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
+          AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
 
-	  // Heartbeat
-	  HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
-	  HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
+          print_telemetry(MPPT_GetData());
+      }
 
-	  // MPPT + ADC + Print (every 50 ms)
-	  static uint32_t last_mppt = 0;
-	  if (HAL_GetTick() - last_mppt >= 50) {
-		  last_mppt = HAL_GetTick();
+      /* ── OLED update (every 500 ms) ───────────────────────────── */
+      static uint32_t last_oled = 0;
+      if (HAL_GetTick() - last_oled >= 500) {
+          last_oled = HAL_GetTick();
+          update_oled(MPPT_GetData());
+      }
 
-		  int16_t raw;
-		  float v_in = 0, i_in = 0, v_out = 0, i_out = 0;
-
-		  for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++) {
-			  cfg.mux = channels[ch];
-			  if (ADS1115_ReadSingleShot(&hi2c2, ADS1115_ADDR_GND, &cfg, &raw) == HAL_OK) {
-				  float mv = ADS1115_ConvertToMillivolts(raw, cfg.pga);
-				  switch (ch) {
-					  case 0: i_in  = (mv / 1000.0f / 50.0f) / 0.0025f; break;
-					  case 1: i_out = (mv / 1000.0f / 50.0f) / 0.0025f; break;
-					  case 2: v_in  = mv / 1000.0f * 20.0f;              break;
-					  case 3: v_out = mv / 1000.0f * 20.0f;              break;
-				  }
-			  }
-		  }
-
-		  uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
-		  status = AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
-
-		  const MPPT_Data_t *mppt = MPPT_GetData();
-		  printf("MPPT: tick=%lu  wiper=%u  state=%d  Pin=%.2fW  Vin=%.2fV  Iin=%.3fA\r\n",
-				 HAL_GetTick(), mppt->wiper, mppt->state,
-				 mppt->power_W, mppt->in_voltage_V, mppt->in_current_A);
-		  printf("      Vout=%.2fV  Iout=%.3f A\r\n",
-				 mppt->out_voltage_V, mppt->out_current_A);
-		  printf("----\r\n");
-	  }
-
-	  //	  // Thermocouple reads (uncomment when needed)
-	  //	  static uint32_t last_tc = 0;
-	  //	  if (HAL_GetTick() - last_tc >= 1000) {
-	  //		  last_tc = HAL_GetTick();
-	  //
-	  //		  MAX31855_Data tc;
-	  //		  if (MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc) == HAL_OK && !tc.fault) {
-	  //			  printf("TC3: %.2f C  |  CJ3: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	  //		  }
-	  //
-	  //		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc) == HAL_OK && !tc.fault) {
-	  //			  printf("TC2: %.2f C  |  CJ2: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	  //		  }
-	  //
-	  //		  if (MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc) == HAL_OK && !tc.fault) {
-	  //			  printf("TC1: %.2f C  |  CJ1: %.2f C\r\n", tc.tc_temp, tc.cj_temp);
-	  //		  }
-	  //	  }
-
-
-//	status = MAX31855_Read(&hspi1, THERMO_CS1_GPIO_Port, THERMO_CS1_Pin, &tc);	// Read from J_Temp3
-//	if (status != HAL_OK) {
-//		printf("SPI ERROR (0x%02X)\r\n", status);
-//	} else if (tc.fault) {
-//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-//	} else {
-//		printf("TC3: %8.2f C  |  CJ3: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-//	}
-//
-//	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS2_Pin, &tc);	// Read from J_Temp2
-//	if (status != HAL_OK) {
-//		printf("SPI ERROR (0x%02X)\r\n", status);
-//	} else if (tc.fault) {
-//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-//	} else {
-//		printf("TC2: %8.2f C  |  CJ2: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-//	}
-//
-//	status = MAX31855_Read(&hspi1, GPIOD, THERMO_CS3_Pin, &tc);	// Read from J_Temp1
-//	if (status != HAL_OK) {
-//		printf("SPI ERROR (0x%02X)\r\n", status);
-//	} else if (tc.fault) {
-//		printf("FAULT: SCV=%d SCG=%d OC=%d\r\n",
-//		tc.fault_scv, tc.fault_scg, tc.fault_oc);
-//	} else {
-//		printf("TC1: %8.2f C  |  CJ1: %8.2f C\r\n", tc.tc_temp, tc.cj_temp);
-//	}
-
-//	/* ---- Send FDCAN2 message ---- */
-//	fdcan2_txData[0] = 0x01;
-//	fdcan2_txData[1] = 0x02;
-//	fdcan2_txData[2] = 0x03;
-//	fdcan2_txData[3] = 0x04;
-//	fdcan2_txData[4] = 0x05;
-//	fdcan2_txData[5] = 0x06;
-//	fdcan2_txData[6] = 0x07;
-//	fdcan2_txData[7] = 0x08;
-
-//	if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &fdcan2_txHeader, fdcan2_txData) != HAL_OK) {
-//		printf("FDCAN2 TX failed\r\n");
-//	} else {
-//		printf("FDCAN2 TX OK (ID=0x%03lX)\r\n", fdcan2_txHeader.Identifier);
-//	}
-
+      /* ── Thermocouple reads (every 1 s) ───────────────────────── */
+      static uint32_t last_tc = 0;
+      if (HAL_GetTick() - last_tc >= 1000) {
+          last_tc = HAL_GetTick();
+          read_thermocouples();
+      }
 
   }
+
   /* USER CODE END 3 */
 }
 

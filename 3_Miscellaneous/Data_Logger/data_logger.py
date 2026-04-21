@@ -123,7 +123,7 @@ def auto_detect_port():
     return None
 
 
-def open_serial(port, baud=115200):
+def open_serial(port, baud=250000):
     """Open serial port with timeout."""
     ser = serial.Serial(port, baud, timeout=1)
     ser.reset_input_buffer()
