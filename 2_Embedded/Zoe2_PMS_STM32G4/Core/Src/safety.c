@@ -9,21 +9,31 @@
  *          in @ref safety.h. All state is kept in file-scope statics;
  *          the module supports a single instance per build.
  *
+ * @copyright Copyright (c) 2026 Carnegie Mellon University – Planetary Robotics Lab
  */
 
 #include "safety.h"
 #include "main.h"   /* for HAL_GetTick() */
+
 #include <string.h>
 
 /* ─────────────────────────────────────────────────────────────────── */
 /* Internal state                                                      */
 /* ─────────────────────────────────────────────────────────────────── */
+
 /** @brief Copy of the caller-supplied configuration. Written by
  *         @ref Safety_Init(), read by @ref Safety_Check(). */
 static Safety_Config_t s_cfg;
 
 /** @brief Live status, updated on every @ref Safety_Check() call. */
 static Safety_Status_t s_status;
+
+/** @brief Fault bits accumulated since the most recent shutdown trip.
+ *         Reset only when the module recovers back to @ref SAFETY_SAFE.
+ *         Used by @ref Safety_FaultTag() so the OLED keeps showing the
+ *         cause of the shutdown throughout the recovery window, even if
+ *         the instantaneous fault has already cleared. */
+static uint32_t s_sticky_flags;
 
 /* ─────────────────────────────────────────────────────────────────── */
 /* Public API                                                          */
@@ -39,6 +49,7 @@ void Safety_Init(const Safety_Config_t *cfg)
 
     memcpy(&s_cfg, cfg, sizeof(s_cfg));
     memset(&s_status, 0, sizeof(s_status));
+    s_sticky_flags    = 0;
     s_status.response = SAFETY_SAFE;
 }
 
@@ -98,10 +109,14 @@ Safety_Response_t Safety_Check(const Safety_Inputs_t *in)
 
     /* ── Decide response with auto-recovery ──────────────────────── */
     if (flags != 0) {
-        /* A fault is active this cycle — trip (or stay tripped) */
+        /* A fault is active this cycle — trip (or stay tripped).
+         * Accumulate into the sticky set so FaultTag() can report the
+         * trip cause throughout the recovery window. */
         if (s_status.response == SAFETY_SAFE) {
             s_status.shutdown_tick = now;
+            s_sticky_flags = 0;     /* fresh trip — start over */
         }
+        s_sticky_flags           |= flags;
         s_status.response         = SAFETY_SHUTDOWN;
         s_status.clear_since_tick = 0;   /* reset recovery timer */
     } else {
@@ -116,6 +131,7 @@ Safety_Response_t Safety_Check(const Safety_Inputs_t *in)
                 s_status.response         = SAFETY_SAFE;
                 s_status.shutdown_tick    = 0;
                 s_status.clear_since_tick = 0;
+                s_sticky_flags            = 0;
             }
             /* else: keep counting, stay in SHUTDOWN */
         }
@@ -139,10 +155,20 @@ const Safety_Status_t *Safety_GetStatus(void)
  * @details See @ref Safety_FaultTag() in safety.h. Priority is fixed in
  *          source order and chosen to surface the most urgent condition
  *          first on the OLED header.
+ *
+ *          While in @ref SAFETY_SHUTDOWN, returns the tag for the worst
+ *          fault observed since the shutdown began — not just the ones
+ *          active on the current cycle. This lets the OLED keep showing
+ *          the trip cause throughout the recovery window even after the
+ *          instantaneous condition has cleared.
  */
 const char *Safety_FaultTag(void)
 {
-    uint32_t f = s_status.fault_flags;
+    /* During shutdown we report the sticky set (worst fault since trip).
+     * When SAFE, sticky is zero, so this reduces to current flags. */
+    uint32_t f = (s_status.response == SAFETY_SHUTDOWN)
+               ? s_sticky_flags
+               : s_status.fault_flags;
 
     /* Priority order — most urgent first */
     if (f & SAFETY_FAULT_TEMP_OVER)  return "OT";
@@ -154,7 +180,7 @@ const char *Safety_FaultTag(void)
     if (f & SAFETY_FAULT_TC_STALE)   return "TC?";
     if (f & SAFETY_FAULT_VIN_UNDER)  return "UV:IN";
 
-    /* No faults currently active but still shut down → recovery window */
+    /* SHUTDOWN with no recorded cause (shouldn't normally happen) */
     if (s_status.response == SAFETY_SHUTDOWN) return "WAIT";
     return "";
 }
