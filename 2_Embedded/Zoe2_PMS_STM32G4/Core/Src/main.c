@@ -30,6 +30,7 @@
 #include <max31855.h>
 #include <bms.h>
 #include <mppt.h>
+#include <safety.h>
 #include <ssd1306.h>
 #include <ssd1306_fonts.h>
 /* USER CODE END Includes */
@@ -75,7 +76,7 @@ static const uint16_t channels[] = {
 /* ADS1115 runtime config (mux updated per-channel in read_adc) */
 static ADS1115_Config cfg;
 
-/* Latest thermocouple readings, cached for OLED and future safety module.
+/* Latest thermocouple readings, cached for OLED and safety module.
  * Each TC has a value and a "last good" timestamp (HAL tick ms).
  * Readings older than TC_STALE_MS are considered stale.
  * Initial ts=0 means "never read" — treated as stale. */
@@ -201,6 +202,7 @@ static void print_telemetry(const MPPT_Data_t *m)
  *
  *   YELLOW BAND (y=0..15):
  *     y=3    "PMS         TRACK"  Font_7x10 (18 chars, 10px tall)
+ *            — when safety trips, the tag replaces the MPPT state.
  *
  *   WHITE AREA (y=16..63):
  *     y=18   "Pin  : 39.3 W"
@@ -218,11 +220,15 @@ static void update_oled(const MPPT_Data_t *m)
 
     ssd1306_Fill(Black);
 
-    /* ── YELLOW BAND: project + state ───────────────────────────── */
-    const char *sname = (m->state <= 3) ? state_names[m->state] : "???";
+    /* ── YELLOW BAND: project + state (or safety tag if faulted) ─ */
+    const char *safety_tag = Safety_FaultTag();
+    const char *header = (safety_tag[0] != '\0')
+                       ? safety_tag
+                       : ((m->state <= 3) ? state_names[m->state] : "???");
+
     /* Font_7x10 is 7px wide → 18 chars fit in 128px width.
-     * Pad so state lands right-justified in the yellow strip. */
-    snprintf(buf, sizeof(buf), "PMS%*s", 15 - (int)strlen(sname), sname);
+     * Pad so state/tag lands right-justified in the yellow strip. */
+    snprintf(buf, sizeof(buf), "PMS%*s", 15 - (int)strlen(header), header);
     ssd1306_SetCursor(0, 3);
     ssd1306_WriteString(buf, Font_7x10, White);
 
@@ -370,32 +376,46 @@ int main(void)
   cfg.comp_que  = ADS1115_COMP_QUE_DISABLE;
 
   /* ---- Boost converters start in OFF state ----
-  * Explicit safe default: both master and slave disabled at boot.
-  * A later enable happens once MPPT is initialized and the first
-  * ADC reading confirms the input is in a reasonable range. For
-  * now we bring master up immediately after init to preserve
-  * existing behavior; safety module will gate this later.
-  */
+   * Explicit safe default: both master and slave disabled at boot.
+   * The safety module owns enable/disable from this point forward;
+   * boost_master_enable() is called once below after init, then only
+   * toggled in response to safety state transitions in the main loop.
+   */
   boost_disable_all();
   HAL_Delay(10);
 
   /* ---- Start FDCAN2 (non-fatal for debugging) ---- */
   if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK) {
-	  printf("FDCAN2 start FAILED\r\n");
+      printf("FDCAN2 start FAILED\r\n");
   } else {
-	  printf("FDCAN2 started OK\r\n");
+      printf("FDCAN2 started OK\r\n");
   }
 
   /* ---- Initialize MPPT ---- */
   MPPT_Config_t mppt_cfg = {
-		  .wiper_min     = 179,                    // your custom minimum
-		  .wiper_max     = 255,
-		  .po_step       = 1,
-		  .scan_step     = 5,
-		  .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
+      .wiper_min     = 179,
+      .wiper_max     = 255,
+      .po_step       = 1,
+      .scan_step     = 5,
+      .scan_interval = MPPT_SCAN_INTERVAL_DEFAULT,
   };
   MPPT_Init(&mppt_cfg);
   printf("MPPT initialized\r\n");
+
+  /* ---- Initialize Safety ---- */
+  Safety_Config_t safety_cfg = {
+      .vin_max_V      = SAFETY_DEFAULT_VIN_MAX_V,
+      .vin_min_V      = SAFETY_DEFAULT_VIN_MIN_V,
+      .iin_max_A      = SAFETY_DEFAULT_IIN_MAX_A,
+      .vout_max_V     = SAFETY_DEFAULT_VOUT_MAX_V,
+      .iout_max_A     = SAFETY_DEFAULT_IOUT_MAX_A,
+      .temp_max_C     = SAFETY_DEFAULT_TEMP_MAX_C,
+      .tc_stale_ms    = SAFETY_DEFAULT_TC_STALE_MS,
+      .bms_timeout_ms = SAFETY_DEFAULT_BMS_TIMEOUT_MS,
+      .recovery_ms    = SAFETY_DEFAULT_RECOVERY_MS,
+  };
+  Safety_Init(&safety_cfg);
+  printf("Safety initialized\r\n");
 
   /* ---- Initialize OLED ---- */
   ssd1306_Init();
@@ -407,8 +427,8 @@ int main(void)
   printf("OLED initialized\r\n");
 
   /* ---- All subsystems ready — enable master boost stage ----
-   * Slave stays off until paralleling is needed. Safety module
-   * (TBD) will own enable/disable from this point forward.
+   * Main loop will disable the boost if safety reports SHUTDOWN
+   * and re-enable it when safety returns to SAFE after recovery.
    */
   boost_master_enable(true);
   printf("Boost master enabled\r\n");
@@ -426,7 +446,7 @@ int main(void)
       HAL_GPIO_TogglePin(GPIOG, CAN_NMT_STATUS_Pin);
       HAL_GPIO_TogglePin(GPIOG, CAN_ERROR_STATE_Pin);
 
-      /* ── MPPT + ADC + telemetry (every 50 ms) ─────────────────── */
+      /* ── MPPT + ADC + safety check + telemetry (every 50 ms) ──── */
       static uint32_t last_mppt = 0;
       if (HAL_GetTick() - last_mppt >= 50) {
           last_mppt = HAL_GetTick();
@@ -434,8 +454,33 @@ int main(void)
           float v_in, i_in, v_out, i_out;
           read_adc(&v_in, &i_in, &v_out, &i_out);
 
-          uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
-          AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
+          /* Safety evaluates *before* MPPT so we never drive the pot
+           * with a value from a cycle that turned out to be faulted. */
+          Safety_Inputs_t si = {
+              .v_in          = v_in,
+              .i_in          = i_in,
+              .v_out         = v_out,
+              .i_out         = i_out,
+              .tc_C          = g_tc_C,
+              .tc_last       = g_tc_last,
+              .bms_last_tick = 0,
+              .bms_enabled   = false,   /* BMS not wired into main yet */
+          };
+          Safety_Response_t rsp = Safety_Check(&si);
+
+          if (rsp == SAFETY_SHUTDOWN) {
+              /* Kill the boost and skip MPPT. The algorithm state is
+               * preserved — when we recover, P&O picks up where it left
+               * off rather than starting fresh. */
+              boost_disable_all();
+          } else {
+              /* Re-enable on the first cycle after recovery; cheap
+               * GPIO write so calling it every cycle is fine. */
+              boost_master_enable(true);
+
+              uint8_t wiper = MPPT_Step(v_in, i_in, v_out, i_out);
+              AD5245_SetWiper(&hi2c2, AD5245_ADDR_AD0_LOW, wiper);
+          }
 
           print_telemetry(MPPT_GetData());
       }
@@ -452,6 +497,13 @@ int main(void)
       if (HAL_GetTick() - last_tc >= 1000) {
           last_tc = HAL_GetTick();
           read_thermocouples();
+
+//    	  /* Keep fake cache fresh so TC_STALE never trips */
+//		  uint32_t now = HAL_GetTick();
+//		  for (uint8_t i = 0; i < 3; i++) {
+//			  g_tc_C[i]    = 25.0f;
+//			  g_tc_last[i] = now;
+//		  }
       }
 
   }
