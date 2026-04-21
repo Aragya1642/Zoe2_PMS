@@ -103,14 +103,14 @@
 #define SAFETY_DEFAULT_VIN_MIN_V        5.0f
 
 /** @brief Default hard input-overcurrent limit in A. */
-#define SAFETY_DEFAULT_IIN_MAX_A        8.0f
+#define SAFETY_DEFAULT_IIN_MAX_A        4.0f
 
 /** @brief Default hard output-overvoltage limit in V.
  *  @details Sized for a typical Li-ion 80 V battery pack with headroom. */
 #define SAFETY_DEFAULT_VOUT_MAX_V      80.0f
 
 /** @brief Default hard output-overcurrent limit in A. */
-#define SAFETY_DEFAULT_IOUT_MAX_A       6.0f
+#define SAFETY_DEFAULT_IOUT_MAX_A       5.5f
 
 /** @brief Default hard overtemperature shutdown threshold in °C.
  *  @note  Any thermocouple reaching this value trips the board. */

@@ -393,7 +393,7 @@ int main(void)
 
   /* ---- Initialize MPPT ---- */
   MPPT_Config_t mppt_cfg = {
-      .wiper_min     = 179,
+      .wiper_min     = 112,
       .wiper_max     = 255,
       .po_step       = 1,
       .scan_step     = 5,
@@ -498,12 +498,12 @@ int main(void)
           last_tc = HAL_GetTick();
           read_thermocouples();
 
-//    	  /* Keep fake cache fresh so TC_STALE never trips */
-//		  uint32_t now = HAL_GetTick();
-//		  for (uint8_t i = 0; i < 3; i++) {
-//			  g_tc_C[i]    = 25.0f;
-//			  g_tc_last[i] = now;
-//		  }
+    	  /* Keep fake cache fresh so TC_STALE never trips */
+		  uint32_t now = HAL_GetTick();
+		  g_tc_C[0]    = 25.0f;
+		  g_tc_last[0] = now;
+		  g_tc_C[2]    = 25.0f;
+		  g_tc_last[2] = now;
       }
 
   }
