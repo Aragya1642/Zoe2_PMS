@@ -499,11 +499,13 @@ int main(void)
           read_thermocouples();
 
     	  /* Keep fake cache fresh so TC_STALE never trips */
-		  uint32_t now = HAL_GetTick();
-		  g_tc_C[0]    = 25.0f;
-		  g_tc_last[0] = now;
-		  g_tc_C[2]    = 25.0f;
-		  g_tc_last[2] = now;
+//		  uint32_t now = HAL_GetTick();
+//		  g_tc_C[0]    = 25.0f;
+//		  g_tc_last[0] = now;
+//		  g_tc_C[1]    = 25.0f;
+//		  g_tc_last[1] = now;
+//		  g_tc_C[2]    = 25.0f;
+//		  g_tc_last[2] = now;
       }
 
   }
@@ -631,7 +633,7 @@ static void MX_FDCAN2_Init(void)
   hfdcan2.Init.DataTimeSeg1 = 1;
   hfdcan2.Init.DataTimeSeg2 = 1;
   hfdcan2.Init.StdFiltersNbr = 0;
-  hfdcan2.Init.ExtFiltersNbr = 0;
+  hfdcan2.Init.ExtFiltersNbr = 1;
   hfdcan2.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   if (HAL_FDCAN_Init(&hfdcan2) != HAL_OK)
   {

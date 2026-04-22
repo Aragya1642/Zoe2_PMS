@@ -1,4 +1,4 @@
-../Core/Src/safety.c:36:6:Safety_Init	2
-../Core/Src/safety.c:59:19:Safety_Check	21
-../Core/Src/safety.c:132:24:Safety_GetStatus	1
-../Core/Src/safety.c:143:13:Safety_FaultTag	10
+../Core/Src/safety.c:46:6:Safety_Init	2
+../Core/Src/safety.c:70:19:Safety_Check	21
+../Core/Src/safety.c:148:24:Safety_GetStatus	1
+../Core/Src/safety.c:165:13:Safety_FaultTag	11
