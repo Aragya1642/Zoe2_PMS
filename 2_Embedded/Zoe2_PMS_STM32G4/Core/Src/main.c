@@ -44,6 +44,10 @@
 /* USER CODE BEGIN PD */
 /* Set to 1 to enable I2C bus scan at boot (adds ~400 ms delay) */
 #define DEBUG_I2C_SCAN    0
+
+/* Set to 1 to enable verbose BMS bring-up debug prints.
+ * Keep enabled during hardware bring-up; turn off once BMS is trusted. */
+#define DEBUG_BMS         1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -102,6 +106,9 @@ static void update_oled(const MPPT_Data_t *m);
 static void boost_master_enable(bool on);
 static void boost_slave_enable(bool on);
 static void boost_disable_all(void);
+#if DEBUG_BMS
+static void bms_debug_summary(void);
+#endif
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -315,6 +322,36 @@ static void boost_disable_all(void)
     boost_master_enable(false);
     boost_slave_enable(false);
 }
+
+#if DEBUG_BMS
+/**
+ * @brief Dump parsed BMS telemetry to the UART for bring-up verification.
+ *
+ * Prints a two-line summary: pack-level info (V/I/SoC) and per-cell
+ * statistics (min/max/spread). Only prints if the BMS has produced at
+ * least one valid parse (@c valid == true).
+ */
+static void bms_debug_summary(void)
+{
+    const BMS_Data_t *b = BMS_GetData();
+    if (!b->valid) {
+        printf("BMS: no data yet  rx_total=%lu\r\n", b->rx_total);
+        return;
+    }
+
+    printf("BMS pack: V=%.2fV  I=%.2fA  SoC=%.1f%%  age=%lu ms\r\n",
+           b->total0.pack_voltage_V,
+           b->total0.current_A,
+           b->total0.soc_pct,
+           HAL_GetTick() - b->last_update_ms);
+
+    printf("     max=%umV (c%u)  min=%umV (c%u)  diff=%umV  cells=%u\r\n",
+           b->cell_stats.max_mv, b->cell_stats.max_cell,
+           b->cell_stats.min_mv, b->cell_stats.min_cell,
+           b->cell_stats.diff_mv,
+           b->status2.cell_number);
+}
+#endif
 /* USER CODE END 0 */
 
 /**
@@ -384,11 +421,28 @@ int main(void)
   boost_disable_all();
   HAL_Delay(10);
 
-  /* ---- Start FDCAN2 (non-fatal for debugging) ---- */
+  /* ---- Initialize BMS driver (BEFORE HAL_FDCAN_Start) ----
+   * BMS_Init configures an extended-ID filter and enables the RX FIFO0
+   * new-message notification. Both calls are only valid while FDCAN is
+   * in init mode, so this MUST precede HAL_FDCAN_Start().
+   */
+  if (BMS_Init(&hfdcan2) != HAL_OK) {
+      printf("BMS_Init FAILED\r\n");
+  } else {
+      printf("BMS initialized\r\n");
+  }
+
+  /* ---- Start FDCAN2 ---- */
   if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK) {
       printf("FDCAN2 start FAILED\r\n");
   } else {
       printf("FDCAN2 started OK\r\n");
+      /* Send initial wake-up query — BMS begins autonomous broadcast after this */
+      if (BMS_SendQuery() != HAL_OK) {
+          printf("BMS wake-up query FAILED\r\n");
+      } else {
+          printf("BMS wake-up query sent\r\n");
+      }
   }
 
   /* ---- Initialize MPPT ---- */
@@ -454,6 +508,11 @@ int main(void)
           float v_in, i_in, v_out, i_out;
           read_adc(&v_in, &i_in, &v_out, &i_out);
 
+          /* Pull latest BMS data. last_update_ms and valid are updated
+           * asynchronously from the FDCAN RX ISR; 32-bit reads are atomic
+           * on STM32G4 so no critical section is needed. */
+          const BMS_Data_t *bms = BMS_GetData();
+
           /* Safety evaluates *before* MPPT so we never drive the pot
            * with a value from a cycle that turned out to be faulted. */
           Safety_Inputs_t si = {
@@ -463,8 +522,8 @@ int main(void)
               .i_out         = i_out,
               .tc_C          = g_tc_C,
               .tc_last       = g_tc_last,
-              .bms_last_tick = 0,
-              .bms_enabled   = false,   /* BMS not wired into main yet */
+              .bms_last_tick = bms->last_update_ms,
+              .bms_enabled   = bms->valid,  /* auto-enables on first frame */
           };
           Safety_Response_t rsp = Safety_Check(&si);
 
@@ -507,6 +566,34 @@ int main(void)
 //		  g_tc_C[2]    = 25.0f;
 //		  g_tc_last[2] = now;
       }
+
+      /* ── BMS Keepalive (every 2.5 s) ──────────────────────────── */
+      static uint32_t last_bms = 0;
+      if (HAL_GetTick() - last_bms >= BMS_KEEPALIVE_MS) {
+          last_bms = HAL_GetTick();
+          HAL_StatusTypeDef s = BMS_SendQuery();
+#if DEBUG_BMS
+          printf("BMS query: %s\r\n", (s == HAL_OK) ? "OK" : "FAIL");
+#else
+          if (s != HAL_OK) { printf("BMS_SendQuery FAILED\r\n"); }
+#endif
+      }
+
+#if DEBUG_BMS
+      /* ── BMS liveness + parsed-data dump (every 2 s) ──────────── */
+      static uint32_t last_bms_dbg = 0;
+      if (HAL_GetTick() - last_bms_dbg >= 2000) {
+          last_bms_dbg = HAL_GetTick();
+
+          const BMS_Data_t *b = BMS_GetData();
+          uint32_t age = b->last_update_ms
+                       ? (HAL_GetTick() - b->last_update_ms) : 0;
+          printf("BMS: valid=%d  rx_total=%lu  age=%lu ms\r\n",
+                 b->valid, b->rx_total, age);
+
+          bms_debug_summary();
+      }
+#endif
 
   }
 
@@ -917,6 +1004,20 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+ * @brief FDCAN RX FIFO0 callback — HAL requires this at application
+ *        level. Delegates to the appropriate driver based on which
+ *        FDCAN peripheral triggered the interrupt.
+ */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan,
+                               uint32_t RxFifo0ITs)
+{
+    if (hfdcan == &hfdcan2) {
+        BMS_RxCallback(hfdcan);
+    }
+    /* FDCAN1 (CANopen) RX handler would go here when added */
+}
 
 /* USER CODE END 4 */
 
